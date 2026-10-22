@@ -27,7 +27,7 @@ var _rng := RandomNumberGenerator.new()
 
 var _viewmodel: Node3D
 var _picker: Node3D
-var _claw: Node3D
+var _tool: Node3D
 var _bag_pivot: Node3D
 var _bag_body: Node3D
 var _grab_anim: float = 0.0
@@ -100,11 +100,6 @@ func _build_viewmodel() -> void:
 	var sleeve_mat: StandardMaterial3D = ProductShapes._mat(Color(0.16, 0.21, 0.13), 0.0, 0.96)
 	var sleeve_dark: StandardMaterial3D = ProductShapes._mat(Color(0.09, 0.12, 0.075), 0.0, 0.98)
 	var cuff_mat: StandardMaterial3D = ProductShapes._mat(Color(0.24, 0.27, 0.15), 0.0, 0.94)
-	var metal: StandardMaterial3D = ProductShapes._mat(Color(0.70, 0.72, 0.76), 0.55, 0.3)
-	var metal_dark: StandardMaterial3D = ProductShapes._mat(Color(0.20, 0.22, 0.25), 0.72, 0.34)
-	var rubber: StandardMaterial3D = ProductShapes._mat(Color(0.045, 0.05, 0.055), 0.05, 0.72)
-	var orange: StandardMaterial3D = ProductShapes._mat(Color(0.95, 0.38, 0.035), 0.05, 0.42)
-	var orange_dark: StandardMaterial3D = ProductShapes._mat(Color(0.55, 0.18, 0.02), 0.05, 0.5)
 	var bag_mat: StandardMaterial3D = ProductShapes._mat(Color(0.026, 0.028, 0.032), 0.08, 0.17)
 	bag_mat.clearcoat_enabled = true
 	bag_mat.clearcoat = 0.7
@@ -117,42 +112,23 @@ func _build_viewmodel() -> void:
 	_picker = Node3D.new()
 	_viewmodel.add_child(_picker)
 	var grip := Vector3(-0.36, -0.38, -0.62)
-	var tip := Vector3(-0.02, 0.06, -1.75)
-	var axis := (tip - grip).normalized()
-
-	_cylinder_between(_picker, grip - axis * 0.14, grip + axis * 0.11, 0.024, 0.024, rubber, 10)
-	_cylinder_between(_picker, grip - axis * 0.14, grip - axis * 0.105, 0.031, 0.031, rubber, 10)
-	_cylinder_between(_picker, grip + axis * 0.085, grip + axis * 0.12, 0.031, 0.031, rubber, 10)
-	_cylinder_between(_picker, grip + axis * 0.105, tip - axis * 0.055, 0.014, 0.016, metal, 10)
-	_cylinder_between(_picker, tip - axis * 0.12, tip - axis * 0.02, 0.030, 0.024, metal_dark, 10)
-
-	var collar_pos := grip.lerp(tip, 0.52)
-	_cylinder_between(_picker, collar_pos - axis * 0.045, collar_pos + axis * 0.045, 0.025, 0.025, rubber, 10)
-	_cylinder_between(_picker, collar_pos - axis * 0.010, collar_pos + axis * 0.010, 0.027, 0.027, orange, 10)
-
-	var trigger_grip := _add_vm_box(_picker, Vector3(0.044, 0.10, 0.045), grip + Vector3(-0.003, -0.088, 0.012), rubber)
-	trigger_grip.rotation.x = deg_to_rad(-14.0)
-	trigger_grip.rotation.z = deg_to_rad(9.0)
-	var trigger := _add_vm_box(_picker, Vector3(0.020, 0.052, 0.016), grip + Vector3(0.002, -0.07, -0.024), orange_dark)
-	trigger.rotation.x = deg_to_rad(-24.0)
-	_add_vm_box(_picker, Vector3(0.038, 0.010, 0.038), grip + Vector3(-0.003, -0.154, 0.011), orange_dark)
-
-	_claw = Node3D.new()
-	_claw.position = tip
-	_claw.quaternion = Quaternion(Vector3.UP, axis)
-	_picker.add_child(_claw)
-	_cylinder_between(_claw, Vector3(0, -0.03, 0), Vector3(0, 0.055, 0), 0.044, 0.036, metal_dark, 10)
-	_cylinder_between(_claw, Vector3(0, 0.045, 0), Vector3(0, 0.085, 0), 0.05, 0.04, rubber, 10)
-	for side in [-1.0, 1.0]:
-		var jaw := _add_vm_box(_claw, Vector3(0.021, 0.15, 0.035), Vector3(side * 0.057, 0.115, 0.0), orange)
-		jaw.rotation.z = -side * 0.24
-		var jaw_pad := _add_vm_sphere(_claw, 0.03, Vector3(side * 0.075, 0.183, 0.0), orange_dark, 8, 5)
-		jaw_pad.scale = Vector3(0.85, 1.15, 0.72)
-		var jaw_side := _add_vm_box(_claw, Vector3(0.032, 0.115, 0.021), Vector3(0, 0.103, side * 0.052), orange)
-		jaw_side.rotation.x = side * 0.24
-		var pad := _add_vm_sphere(_claw, 0.026, Vector3(0, 0.158, side * 0.066), orange_dark, 8, 5)
-		pad.scale = Vector3(0.85, 0.85, 1.05)
-	_add_vm_box(_claw, Vector3(0.10, 0.018, 0.10), Vector3(0, 0.012, 0), rubber)
+	var axis := Vector3(0.267, 0.345, -0.888).normalized()
+	var tool_axis := Vector3(0.244, 0.157, -0.957).normalized()
+	var tool_lift := (Vector3.UP - tool_axis * tool_axis.dot(Vector3.UP)).normalized()
+	var tool_side := tool_axis.cross(tool_lift).normalized()
+	var grab_scene: PackedScene = load("res://assets/models/grabber.glb")
+	var grabber: Node3D = grab_scene.instantiate()
+	_tool = Node3D.new()
+	_tool.name = "Grabber"
+	_tool.position = grip
+	_tool.transform.basis = Basis(tool_axis, tool_lift, tool_side)
+	_tool.scale = Vector3.ONE * 1.2
+	_picker.add_child(_tool)
+	_tool.add_child(grabber)
+	grabber.position = Vector3(0.47, -0.09, 0.0)
+	for mi in _tool.find_children("*", "MeshInstance3D", true, false):
+		var mesh_inst := mi as MeshInstance3D
+		mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var wrist_l := Vector3(-0.43, -0.39, -0.56)
 	var elbow_l := Vector3(-0.55, -0.65, -0.34)
@@ -567,7 +543,7 @@ func add_to_stack(dept: int) -> void:
 
 
 func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
-	if _viewmodel == null or _bag_body == null or _claw == null:
+	if _viewmodel == null or _bag_body == null or _tool == null:
 		return
 	_view_t += delta
 	var speed := maxf(GameState.player_speed(), 0.01)
@@ -588,12 +564,9 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	_bag_pivot.rotation.x = lerpf(_bag_pivot.rotation.x, move_vec.y * 0.02 + sin(_view_t * 1.7) * 0.006, minf(delta * 4.0, 1.0))
 
 	_picker.position.z = lerpf(_picker.position.z, -_grab_anim * 0.012, minf(delta * 14.0, 1.0))
+	_picker.position.y = lerpf(_picker.position.y, -_grab_anim * 0.006, minf(delta * 14.0, 1.0))
 	_picker.rotation.z = lerpf(_picker.rotation.z, -move_vec.x * 0.012, minf(delta * 5.0, 1.0))
-	var close := 0.0
-	if _grab_anim > 0.0:
-		close = sin((1.0 - _grab_anim) * PI)
-	var claw_base := 1.3
-	_claw.scale = Vector3(claw_base * (1.0 - close * 0.38), claw_base, claw_base * (1.0 - close * 0.32))
+	_picker.rotation.x = lerpf(_picker.rotation.x, -_grab_anim * 0.018, minf(delta * 10.0, 1.0))
 	_grab_anim = maxf(_grab_anim - delta * 4.5, 0.0)
 
 
