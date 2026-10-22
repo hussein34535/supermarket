@@ -5,13 +5,18 @@ var player: Player
 
 var cash_label: Label
 var progress_label: Label
+var progress_bar: ProgressBar
 var capacity_label: Label
+var top_item_label: Label
 var powerup_buttons: Array[Button] = []
-var powerup_timers: Array[Label] = []
+var toast_box: VBoxContainer
 
 var upgrades_panel: PanelContainer
 var pause_panel: PanelContainer
 var win_panel: PanelContainer
+var upgrades_cash_label: Label
+var win_stats_label: Label
+var start_banner: Control
 
 var speed_btn: Button
 var reach_btn: Button
@@ -27,10 +32,22 @@ var look_touch_index: int = -1
 var look_last: Vector2 = Vector2.ZERO
 
 
+class Crosshair extends Control:
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var c := size * 0.5
+		draw_circle(c, 2.0, Color(1, 1, 1, 0.9))
+		draw_arc(c, 9.0, 0.0, TAU, 28, Color(1, 1, 1, 0.35), 1.5, true)
+
+
 func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_hud()
+	_build_toasts()
+	_build_start_banner()
 	_build_upgrades_panel()
 	_build_pause_panel()
 	_build_win_panel()
@@ -48,6 +65,36 @@ func _ready() -> void:
 	_refresh_powerups()
 
 
+func _style(bg: Color, border: Color = Color(0, 0, 0, 0), radius: int = 12, margin: int = 0, border_w: int = 0) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = bg
+	s.set_corner_radius_all(radius)
+	s.set_content_margin_all(margin)
+	if border_w > 0:
+		s.border_color = border
+		s.border_width_left = border_w
+		s.border_width_top = border_w
+		s.border_width_right = border_w
+		s.border_width_bottom = border_w
+	return s
+
+
+func _button_styles(btn: Button, accent: Color) -> void:
+	var normal := _style(Color(1, 1, 1, 0.06), Color(accent.r, accent.g, accent.b, 0.35), 10, 6, 1)
+	var hover := _style(Color(accent.r, accent.g, accent.b, 0.18), Color(accent.r, accent.g, accent.b, 0.7), 10, 6, 1)
+	var pressed := _style(Color(accent.r, accent.g, accent.b, 0.3), accent, 10, 6, 1)
+	var disabled := _style(Color(0.02, 0.04, 0.05, 0.62), Color(1, 1, 1, 0.14), 10, 6, 1)
+	for key in ["normal", "hover", "pressed", "disabled"]:
+		var sb: StyleBoxFlat = normal
+		match key:
+			"hover": sb = hover
+			"pressed": sb = pressed
+			"disabled": sb = disabled
+		btn.add_theme_stylebox_override(key, sb)
+	btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.92))
+	btn.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.54))
+
+
 func _build_hud() -> void:
 	var hud := Control.new()
 	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -57,149 +104,288 @@ func _build_hud() -> void:
 	var top_bar := PanelContainer.new()
 	top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	top_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0.45)
-	style.set_corner_radius_all(0)
-	top_bar.add_theme_stylebox_override("panel", style)
-	top_bar.custom_minimum_size = Vector2(0, 44)
+	var top_style := _style(Color(0.04, 0.05, 0.08, 0.75), Color(0.35, 0.9, 0.5, 0.35), 0, 12, 0)
+	top_style.border_width_bottom = 2
+	top_bar.add_theme_stylebox_override("panel", top_style)
+	top_bar.custom_minimum_size = Vector2(0, 60)
 	hud.add_child(top_bar)
 
 	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 24)
+	hbox.add_theme_constant_override("separation", 18)
 	top_bar.add_child(hbox)
 
 	cash_label = Label.new()
-	cash_label.add_theme_font_size_override("font_size", 22)
-	cash_label.add_theme_color_override("font_color", Color(0.4, 1, 0.5))
+	cash_label.text = "$0"
+	cash_label.add_theme_font_size_override("font_size", 26)
+	cash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+	cash_label.custom_minimum_size = Vector2(110, 0)
+	cash_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cash_label.pivot_offset = Vector2(55, 20)
 	hbox.add_child(cash_label)
 
+	var prog_wrap := VBoxContainer.new()
+	prog_wrap.add_theme_constant_override("separation", 3)
+	prog_wrap.alignment = BoxContainer.ALIGNMENT_CENTER
+	hbox.add_child(prog_wrap)
+
 	progress_label = Label.new()
-	progress_label.add_theme_font_size_override("font_size", 22)
-	hbox.add_child(progress_label)
+	progress_label.text = "STOCKED"
+	progress_label.add_theme_font_size_override("font_size", 12)
+	progress_label.modulate = Color(1, 1, 1, 0.65)
+	prog_wrap.add_child(progress_label)
+
+	progress_bar = ProgressBar.new()
+	progress_bar.custom_minimum_size = Vector2(250, 12)
+	progress_bar.show_percentage = false
+	progress_bar.max_value = GameState.TOTAL_PRODUCTS
+	progress_bar.add_theme_stylebox_override("background", _style(Color(1, 1, 1, 0.12), Color(0, 0, 0, 0), 6))
+	progress_bar.add_theme_stylebox_override("fill", _style(Color(0.35, 0.9, 0.5), Color(0, 0, 0, 0), 6))
+	prog_wrap.add_child(progress_bar)
 
 	capacity_label = Label.new()
-	capacity_label.add_theme_font_size_override("font_size", 22)
-	capacity_label.add_theme_color_override("font_color", Color(1, 0.9, 0.4))
+	capacity_label.text = "Carry 0 / 6"
+	capacity_label.add_theme_font_size_override("font_size", 18)
+	capacity_label.add_theme_color_override("font_color", Color(1, 0.88, 0.4))
+	capacity_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hbox.add_child(capacity_label)
 
-	var hint := Label.new()
-	hint.text = "   [U] Shop   [P] Pause   [Tab] Cursor"
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.modulate = Color(1, 1, 1, 0.55)
-	hbox.add_child(hint)
+	top_item_label = Label.new()
+	top_item_label.text = ""
+	top_item_label.add_theme_font_size_override("font_size", 18)
+	top_item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hbox.add_child(top_item_label)
 
-	var crosshair := Label.new()
-	crosshair.text = "+"
-	crosshair.add_theme_font_size_override("font_size", 28)
-	crosshair.set_anchors_preset(Control.PRESET_CENTER)
-	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(crosshair)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(spacer)
+
+	var hints := Label.new()
+	hints.text = "[U] Shop   [P] Pause   [Tab] Cursor   [Q] Drop"
+	hints.add_theme_font_size_override("font_size", 13)
+	hints.modulate = Color(1, 1, 1, 0.5)
+	hints.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hbox.add_child(hints)
+
+	var cross := Crosshair.new()
+	cross.anchor_left = 0.5
+	cross.anchor_top = 0.5
+	cross.anchor_right = 0.5
+	cross.anchor_bottom = 0.5
+	cross.offset_left = -20
+	cross.offset_top = -20
+	cross.offset_right = 20
+	cross.offset_bottom = 20
+	hud.add_child(cross)
 
 	var bottom := HBoxContainer.new()
 	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom.add_theme_constant_override("separation", 10)
-	bottom.offset_top = -90
-	bottom.offset_bottom = -20
+	bottom.offset_top = -94
+	bottom.offset_bottom = -18
 	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(bottom)
 
 	for i in 4:
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(150, 64)
-		btn.add_theme_font_size_override("font_size", 13)
-		btn.clip_text = false
+		btn.custom_minimum_size = Vector2(172, 68)
+		btn.add_theme_font_size_override("font_size", 12)
 		btn.pressed.connect(_on_powerup_pressed.bind(i))
+		_button_styles(btn, Color(0.5, 0.85, 1.0))
 		bottom.add_child(btn)
 		powerup_buttons.append(btn)
-		var timer_lbl := Label.new()
-		timer_lbl.add_theme_font_size_override("font_size", 14)
-		timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		timer_lbl.set_anchors_preset(Control.PRESET_CENTER)
-		timer_lbl.position = Vector2(0, 26)
-		timer_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		btn.add_child(timer_lbl)
-		powerup_timers.append(timer_lbl)
+
+
+func _build_toasts() -> void:
+	toast_box = VBoxContainer.new()
+	toast_box.anchor_left = 0.5
+	toast_box.anchor_right = 0.5
+	toast_box.offset_left = -250
+	toast_box.offset_right = 250
+	toast_box.offset_top = 78
+	toast_box.add_theme_constant_override("separation", 6)
+	toast_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(toast_box)
+
+
+func show_toast(text: String, color: Color = Color.WHITE) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	lbl.add_theme_constant_override("outline_size", 8)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_box.add_child(lbl)
+	var tw := create_tween()
+	tw.tween_interval(1.8)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(lbl.queue_free)
+
+
+func _build_start_banner() -> void:
+	start_banner = Control.new()
+	start_banner.set_anchors_preset(Control.PRESET_FULL_RECT)
+	start_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(start_banner)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	start_banner.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _style(Color(0.03, 0.05, 0.08, 0.88), Color(0.35, 0.9, 0.5, 0.5), 20, 32, 2))
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(panel)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	panel.add_child(v)
+
+	var t1 := Label.new()
+	t1.text = "CLEAN THE"
+	t1.add_theme_font_size_override("font_size", 38)
+	t1.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t1)
+
+	var t2 := Label.new()
+	t2.text = "SUPERMARKET"
+	t2.add_theme_font_size_override("font_size", 52)
+	t2.add_theme_color_override("font_color", Color(0.45, 1.0, 0.55))
+	t2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t2)
+
+	var sub := Label.new()
+	sub.text = "Stock all 852 products on the right shelves"
+	sub.add_theme_font_size_override("font_size", 16)
+	sub.modulate = Color(1, 1, 1, 0.85)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(sub)
+
+	var sub2 := Label.new()
+	sub2.text = "WASD move   •   Mouse look   •   E pick / place"
+	sub2.add_theme_font_size_override("font_size", 13)
+	sub2.modulate = Color(1, 1, 1, 0.55)
+	sub2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(sub2)
+
+	var tw := create_tween()
+	tw.tween_interval(4.5)
+	tw.tween_property(start_banner, "modulate:a", 0.0, 0.8)
+	tw.tween_callback(start_banner.hide)
 
 
 func _build_upgrades_panel() -> void:
 	upgrades_panel = PanelContainer.new()
 	upgrades_panel.visible = false
 	upgrades_panel.set_anchors_preset(Control.PRESET_CENTER)
-	upgrades_panel.custom_minimum_size = Vector2(480, 420)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.09, 0.12, 0.96)
-	style.set_corner_radius_all(14)
-	style.set_content_margin_all(20)
-	upgrades_panel.add_theme_stylebox_override("panel", style)
+	upgrades_panel.custom_minimum_size = Vector2(540, 590)
+	upgrades_panel.add_theme_stylebox_override("panel", _style(Color(0.05, 0.06, 0.09, 0.97), Color(0.35, 0.9, 0.5, 0.4), 18, 24, 2))
 	add_child(upgrades_panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
+	vbox.add_theme_constant_override("separation", 9)
 	upgrades_panel.add_child(vbox)
+
+	var title_row := HBoxContainer.new()
+	title_row.add_theme_constant_override("separation", 12)
+	vbox.add_child(title_row)
 
 	var title := Label.new()
 	title.text = "UPGRADES"
-	title.add_theme_font_size_override("font_size", 30)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
+	title.add_theme_font_size_override("font_size", 28)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title)
 
 	upgrades_cash_label = Label.new()
-	upgrades_cash_label.name = "CashLabel"
+	upgrades_cash_label.text = "Cash: $0"
 	upgrades_cash_label.add_theme_font_size_override("font_size", 18)
-	upgrades_cash_label.add_theme_color_override("font_color", Color(0.4, 1, 0.5))
-	upgrades_cash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(upgrades_cash_label)
+	upgrades_cash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+	upgrades_cash_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_row.add_child(upgrades_cash_label)
 
-	speed_btn = _make_shop_btn(vbox, "Movement Speed")
-	speed_btn.pressed.connect(_buy_speed)
-	reach_btn = _make_shop_btn(vbox, "Interaction Distance")
-	reach_btn.pressed.connect(_buy_reach)
-	cap_btn = _make_shop_btn(vbox, "Carrying Capacity")
-	cap_btn.pressed.connect(_buy_cap)
+	var move_title := Label.new()
+	move_title.text = "MOVEMENT & CARRY"
+	move_title.add_theme_font_size_override("font_size", 12)
+	move_title.modulate = Color(1, 1, 1, 0.55)
+	vbox.add_child(move_title)
+
+	speed_btn = _make_row(vbox, "Movement Speed", Color(0.35, 0.9, 0.5), _buy_speed)
+	reach_btn = _make_row(vbox, "Interaction Distance", Color(0.4, 0.75, 1.0), _buy_reach)
+	cap_btn = _make_row(vbox, "Carrying Capacity", Color(1.0, 0.8, 0.3), _buy_cap)
 
 	var pu_title := Label.new()
-	pu_title.text = "— Active Abilities —"
-	pu_title.add_theme_font_size_override("font_size", 16)
-	pu_title.modulate = Color(1, 1, 1, 0.7)
+	pu_title.text = "ACTIVE ABILITIES"
+	pu_title.add_theme_font_size_override("font_size", 12)
+	pu_title.modulate = Color(1, 1, 1, 0.55)
 	vbox.add_child(pu_title)
 
+	var colors: Array[Color] = [
+		Color(1.0, 0.85, 0.35), Color(0.45, 1.0, 0.55), Color(0.4, 0.85, 1.0), Color(0.85, 0.55, 1.0)
+	]
 	for i in 4:
-		var btn := _make_shop_btn(vbox, GameState.POWERUP_NAMES[i])
-		btn.pressed.connect(_buy_powerup.bind(i))
+		var btn := _make_row(vbox, GameState.POWERUP_NAMES[i], colors[i], _buy_powerup.bind(i))
 		powerup_shop_btns.append(btn)
 
+	var hint := Label.new()
+	hint.text = "Abilities are used in-game with keys 1-4"
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.modulate = Color(1, 1, 1, 0.45)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(hint)
+
 	var close := Button.new()
-	close.text = "Close [U]"
-	close.custom_minimum_size = Vector2(0, 44)
+	close.text = "Close  [U]"
+	close.custom_minimum_size = Vector2(0, 46)
+	_button_styles(close, Color(0.35, 0.9, 0.5))
 	close.pressed.connect(toggle_upgrades)
 	vbox.add_child(close)
 
 
-func _make_shop_btn(parent: Control, text: String) -> Button:
+func _make_row(parent: Control, text: String, accent: Color, action: Callable) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(0, 48)
-	btn.add_theme_font_size_override("font_size", 16)
-	var hbox := HBoxContainer.new()
-	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var lbl := Label.new()
-	lbl.name = "NameLabel"
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 16)
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hbox.add_child(lbl)
-	var cost := Label.new()
-	cost.name = "CostLabel"
-	cost.add_theme_font_size_override("font_size", 16)
-	cost.add_theme_color_override("font_color", Color(0.4, 1, 0.5))
-	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hbox.add_child(cost)
-	btn.add_child(hbox)
-	hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	hbox.offset_left = 12
-	hbox.offset_right = -12
+	btn.custom_minimum_size = Vector2(0, 50)
+	_button_styles(btn, accent)
+	btn.pressed.connect(action)
 	parent.add_child(btn)
+
+	var hbox := HBoxContainer.new()
+	hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hbox.offset_left = 14
+	hbox.offset_right = -14
+	hbox.add_theme_constant_override("separation", 10)
+	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(hbox)
+
+	var dot := ColorRect.new()
+	dot.color = accent
+	dot.custom_minimum_size = Vector2(10, 10)
+	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(dot)
+
+	var name_lbl := Label.new()
+	name_lbl.name = "NameLabel"
+	name_lbl.text = text
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.add_theme_font_size_override("font_size", 15)
+	name_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(name_lbl)
+
+	var cost_lbl := Label.new()
+	cost_lbl.name = "CostLabel"
+	cost_lbl.text = ""
+	cost_lbl.add_theme_font_size_override("font_size", 15)
+	cost_lbl.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+	cost_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cost_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(cost_lbl)
+
 	return btn
 
 
@@ -207,16 +393,12 @@ func _build_pause_panel() -> void:
 	pause_panel = PanelContainer.new()
 	pause_panel.visible = false
 	pause_panel.set_anchors_preset(Control.PRESET_CENTER)
-	pause_panel.custom_minimum_size = Vector2(320, 240)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.09, 0.12, 0.96)
-	style.set_corner_radius_all(14)
-	style.set_content_margin_all(24)
-	pause_panel.add_theme_stylebox_override("panel", style)
+	pause_panel.custom_minimum_size = Vector2(340, 330)
+	pause_panel.add_theme_stylebox_override("panel", _style(Color(0.05, 0.06, 0.09, 0.97), Color(0.35, 0.9, 0.5, 0.4), 18, 24, 2))
 	add_child(pause_panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 14)
+	vbox.add_theme_constant_override("separation", 12)
 	pause_panel.add_child(vbox)
 
 	var title := Label.new()
@@ -226,14 +408,34 @@ func _build_pause_panel() -> void:
 	vbox.add_child(title)
 
 	var resume := Button.new()
-	resume.text = "Resume [P]"
+	resume.text = "Resume  [P]"
 	resume.custom_minimum_size = Vector2(0, 48)
+	_button_styles(resume, Color(0.35, 0.9, 0.5))
 	resume.pressed.connect(toggle_pause)
 	vbox.add_child(resume)
+
+	var shop := Button.new()
+	shop.text = "Upgrades  [U]"
+	shop.custom_minimum_size = Vector2(0, 48)
+	_button_styles(shop, Color(0.4, 0.75, 1.0))
+	shop.pressed.connect(func() -> void:
+		pause_panel.visible = false
+		get_tree().paused = false
+		toggle_upgrades()
+	)
+	vbox.add_child(shop)
+
+	var restart := Button.new()
+	restart.text = "Restart"
+	restart.custom_minimum_size = Vector2(0, 48)
+	_button_styles(restart, Color(1.0, 0.8, 0.3))
+	restart.pressed.connect(_restart)
+	vbox.add_child(restart)
 
 	var quit := Button.new()
 	quit.text = "Quit Game"
 	quit.custom_minimum_size = Vector2(0, 48)
+	_button_styles(quit, Color(1.0, 0.45, 0.45))
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	vbox.add_child(quit)
 
@@ -242,16 +444,12 @@ func _build_win_panel() -> void:
 	win_panel = PanelContainer.new()
 	win_panel.visible = false
 	win_panel.set_anchors_preset(Control.PRESET_CENTER)
-	win_panel.custom_minimum_size = Vector2(400, 260)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.15, 0.08, 0.97)
-	style.set_corner_radius_all(16)
-	style.set_content_margin_all(28)
-	win_panel.add_theme_stylebox_override("panel", style)
+	win_panel.custom_minimum_size = Vector2(460, 310)
+	win_panel.add_theme_stylebox_override("panel", _style(Color(0.04, 0.14, 0.07, 0.97), Color(0.45, 1.0, 0.55, 0.6), 20, 30, 2))
 	add_child(win_panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
+	vbox.add_theme_constant_override("separation", 14)
 	win_panel.add_child(vbox)
 
 	var title := Label.new()
@@ -261,15 +459,16 @@ func _build_win_panel() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
-	var sub := Label.new()
-	sub.text = "All 852 products stocked.\nTotal cash: $%d" % GameState.cash
-	sub.add_theme_font_size_override("font_size", 18)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(sub)
+	win_stats_label = Label.new()
+	win_stats_label.text = ""
+	win_stats_label.add_theme_font_size_override("font_size", 18)
+	win_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(win_stats_label)
 
 	var btn := Button.new()
 	btn.text = "Play Again"
 	btn.custom_minimum_size = Vector2(0, 50)
+	_button_styles(btn, Color(0.35, 0.9, 0.5))
 	btn.pressed.connect(_restart)
 	vbox.add_child(btn)
 
@@ -281,83 +480,106 @@ func _build_mobile() -> void:
 	add_child(mobile_root)
 
 	joystick_base = Control.new()
-	joystick_base.custom_minimum_size = Vector2(140, 140)
-	joystick_base.position = Vector2(30, -180)
-	joystick_base.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	joystick_base.offset_top = -180
-	joystick_base.offset_bottom = -40
+	joystick_base.anchor_left = 0.0
+	joystick_base.anchor_top = 1.0
+	joystick_base.anchor_right = 0.0
+	joystick_base.anchor_bottom = 1.0
 	joystick_base.offset_left = 30
-	joystick_base.offset_right = 170
+	joystick_base.offset_top = -190
+	joystick_base.offset_right = 190
+	joystick_base.offset_bottom = -30
 	mobile_root.add_child(joystick_base)
 
-	var joy_bg := ColorRect.new()
-	joy_bg.color = Color(1, 1, 1, 0.15)
-	joy_bg.size = Vector2(140, 140)
+	var joy_bg := Panel.new()
+	joy_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	joy_bg.add_theme_stylebox_override("panel", _style(Color(1, 1, 1, 0.07), Color(1, 1, 1, 0.25), 80, 0, 2))
 	joy_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	joystick_base.add_child(joy_bg)
 
-	joystick_knob = ColorRect.new()
-	joystick_knob.color = Color(1, 1, 1, 0.45)
-	joystick_knob.size = Vector2(56, 56)
+	joystick_knob = Panel.new()
+	joystick_knob.add_theme_stylebox_override("panel", _style(Color(1, 1, 1, 0.28), Color(1, 1, 1, 0.5), 32, 0, 2))
+	joystick_knob.size = Vector2(64, 64)
+	joystick_knob.position = Vector2(48, 48)
 	joystick_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	joystick_base.add_child(joystick_knob)
 
 	var interact_btn := Button.new()
 	interact_btn.text = "E"
-	interact_btn.custom_minimum_size = Vector2(90, 90)
-	interact_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	interact_btn.offset_left = -130
+	interact_btn.add_theme_font_size_override("font_size", 30)
+	_button_styles(interact_btn, Color(0.35, 0.9, 0.5))
+	interact_btn.anchor_left = 1.0
+	interact_btn.anchor_top = 1.0
+	interact_btn.anchor_right = 1.0
+	interact_btn.anchor_bottom = 1.0
+	interact_btn.offset_left = -136
+	interact_btn.offset_top = -164
 	interact_btn.offset_right = -40
-	interact_btn.offset_top = -160
-	interact_btn.offset_bottom = -70
+	interact_btn.offset_bottom = -68
 	interact_btn.pressed.connect(func() -> void: player.try_interact())
 	mobile_root.add_child(interact_btn)
 
 	var drop_btn := Button.new()
 	drop_btn.text = "Drop"
-	drop_btn.custom_minimum_size = Vector2(80, 60)
-	drop_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	drop_btn.offset_left = -230
+	drop_btn.add_theme_font_size_override("font_size", 15)
+	_button_styles(drop_btn, Color(1.0, 0.55, 0.45))
+	drop_btn.anchor_left = 1.0
+	drop_btn.anchor_top = 1.0
+	drop_btn.anchor_right = 1.0
+	drop_btn.anchor_bottom = 1.0
+	drop_btn.offset_left = -240
+	drop_btn.offset_top = -104
 	drop_btn.offset_right = -150
-	drop_btn.offset_top = -100
-	drop_btn.offset_bottom = -40
+	drop_btn.offset_bottom = -44
 	drop_btn.pressed.connect(func() -> void: player.drop_top())
 	mobile_root.add_child(drop_btn)
 
 	var shop_btn := Button.new()
 	shop_btn.text = "Shop"
-	shop_btn.custom_minimum_size = Vector2(80, 50)
-	shop_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	shop_btn.offset_left = -200
-	shop_btn.offset_right = -110
-	shop_btn.offset_top = 50
-	shop_btn.offset_bottom = 100
+	shop_btn.add_theme_font_size_override("font_size", 15)
+	_button_styles(shop_btn, Color(0.4, 0.75, 1.0))
+	shop_btn.anchor_left = 1.0
+	shop_btn.anchor_top = 0.0
+	shop_btn.anchor_right = 1.0
+	shop_btn.anchor_bottom = 0.0
+	shop_btn.offset_left = -206
+	shop_btn.offset_top = 70
+	shop_btn.offset_right = -116
+	shop_btn.offset_bottom = 120
 	shop_btn.pressed.connect(toggle_upgrades)
 	mobile_root.add_child(shop_btn)
 
 	var pause_btn := Button.new()
 	pause_btn.text = "II"
-	pause_btn.custom_minimum_size = Vector2(60, 50)
-	pause_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	pause_btn.offset_left = -100
-	pause_btn.offset_right = -40
-	pause_btn.offset_top = 50
-	pause_btn.offset_bottom = 100
+	pause_btn.add_theme_font_size_override("font_size", 18)
+	_button_styles(pause_btn, Color(1, 1, 1))
+	pause_btn.anchor_left = 1.0
+	pause_btn.anchor_top = 0.0
+	pause_btn.anchor_right = 1.0
+	pause_btn.anchor_bottom = 0.0
+	pause_btn.offset_left = -106
+	pause_btn.offset_top = 70
+	pause_btn.offset_right = -46
+	pause_btn.offset_bottom = 120
 	pause_btn.pressed.connect(toggle_pause)
 	mobile_root.add_child(pause_btn)
 
 	var pu_row := HBoxContainer.new()
-	pu_row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	pu_row.offset_left = -400
+	pu_row.anchor_left = 1.0
+	pu_row.anchor_top = 1.0
+	pu_row.anchor_right = 1.0
+	pu_row.anchor_bottom = 1.0
+	pu_row.offset_left = -420
+	pu_row.offset_top = -244
 	pu_row.offset_right = -20
-	pu_row.offset_top = -240
-	pu_row.offset_bottom = -180
+	pu_row.offset_bottom = -176
 	pu_row.add_theme_constant_override("separation", 8)
 	mobile_root.add_child(pu_row)
 	for i in 4:
 		var pu_btn := Button.new()
 		pu_btn.text = "%d" % (i + 1)
-		pu_btn.custom_minimum_size = Vector2(70, 56)
+		pu_btn.custom_minimum_size = Vector2(88, 64)
+		pu_btn.add_theme_font_size_override("font_size", 20)
+		_button_styles(pu_btn, Color(0.5, 0.85, 1.0))
 		pu_btn.pressed.connect(_on_powerup_pressed.bind(i))
 		pu_row.add_child(pu_btn)
 
@@ -375,13 +597,13 @@ func _input(event: InputEvent) -> void:
 		if st.index == joy_touch_index and not st.pressed:
 			joy_touch_index = -1
 			player.set_mobile_move(Vector2.ZERO)
-			joystick_knob.position = Vector2(42, 42)
+			joystick_knob.position = Vector2(48, 48)
 		elif st.index == look_touch_index and not st.pressed:
 			look_touch_index = -1
 		elif st.pressed:
 			if st.position.x < get_viewport().get_visible_rect().size.x * 0.45 and joy_touch_index == -1:
 				joy_touch_index = st.index
-				joy_center = joystick_base.global_position + Vector2(70, 70)
+				joy_center = joystick_base.global_position + Vector2(80, 80)
 				_update_joy(st.position)
 			elif st.position.x > get_viewport().get_visible_rect().size.x * 0.45 and look_touch_index == -1:
 				look_touch_index = st.index
@@ -401,34 +623,48 @@ func _input(event: InputEvent) -> void:
 
 func _update_joy(pos: Vector2) -> void:
 	var delta := pos - joy_center
-	delta = delta.limit_length(60.0)
-	joystick_knob.position = Vector2(42, 42) + delta - Vector2(28, 28)
-	player.set_mobile_move(delta / 60.0)
+	delta = delta.limit_length(56.0)
+	joystick_knob.position = Vector2(48, 48) + delta - Vector2(32, 32)
+	player.set_mobile_move(delta / 56.0)
 
 
 func _process(_delta: float) -> void:
 	_refresh_powerups()
 
 
-var upgrades_cash_label: Label
-
-
 func _update_cash() -> void:
+	if cash_label == null:
+		return
 	cash_label.text = "$%d" % GameState.cash
 	if upgrades_cash_label != null:
 		upgrades_cash_label.text = "Cash: $%d" % GameState.cash
-	if upgrades_panel.visible:
+	if upgrades_panel != null and upgrades_panel.visible:
 		_update_shop()
+	if is_inside_tree() and cash_label.is_inside_tree():
+		cash_label.scale = Vector2(1.18, 1.18)
+		var tw := create_tween()
+		tw.tween_property(cash_label, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK)
 
 
 func _update_progress() -> void:
-	progress_label.text = "%d / %d stocked" % [GameState.placed, GameState.TOTAL_PRODUCTS]
-	if GameState.won and win_panel.visible == false:
+	if progress_label == null:
+		return
+	progress_label.text = "STOCKED  %d / %d" % [GameState.placed, GameState.TOTAL_PRODUCTS]
+	progress_bar.value = GameState.placed
+	if GameState.won and win_panel != null and not win_panel.visible:
 		show_win()
 
 
 func _update_capacity() -> void:
-	capacity_label.text = "Stack: %d / %d" % [player.stack.size(), GameState.capacity()] if player else ""
+	if capacity_label == null or player == null:
+		return
+	capacity_label.text = "Carry %d / %d" % [player.stack.size(), GameState.capacity()]
+	if player.stack.is_empty():
+		top_item_label.text = ""
+	else:
+		var d: int = player.stack.back()
+		top_item_label.text = "Next: %s" % GameState.DEPARTMENT_NAMES[d]
+		top_item_label.add_theme_color_override("font_color", GameState.DEPARTMENT_COLORS[d].lightened(0.25))
 
 
 func _on_powerup_state(_index: int) -> void:
@@ -436,26 +672,27 @@ func _on_powerup_state(_index: int) -> void:
 
 
 func _refresh_powerups() -> void:
+	if powerup_buttons.is_empty():
+		return
 	for i in 4:
 		var btn := powerup_buttons[i]
-		var timer := powerup_timers[i]
-		btn.text = "[%d] %s" % [i + 1, GameState.POWERUP_NAMES[i]]
+		var base := "[%d] %s" % [i + 1, GameState.POWERUP_NAMES[i]]
 		if not GameState.powerup_unlocked(i):
-			btn.modulate = Color(1, 1, 1, 0.3)
+			btn.modulate = Color(1, 1, 1, 0.62)
 			btn.disabled = true
-			timer.text = "Locked"
+			btn.text = base + "\nLocked - buy in shop"
 		elif GameState.powerup_cooldowns[i] > 0.0:
-			btn.modulate = Color(1, 1, 1, 0.55)
+			btn.modulate = Color(1, 1, 1, 0.6)
 			btn.disabled = true
-			timer.text = "%.0fs" % ceilf(GameState.powerup_cooldowns[i])
+			btn.text = base + "\n%.0fs" % ceilf(GameState.powerup_cooldowns[i])
 		elif GameState.powerup_active[i] > 0.0:
-			btn.modulate = Color(0.5, 1, 0.6, 1.0)
+			btn.modulate = Color(0.55, 1.0, 0.65, 1.0)
 			btn.disabled = false
-			timer.text = "ACTIVE %.0fs" % ceilf(GameState.powerup_active[i])
+			btn.text = base + "\nACTIVE %.0fs" % ceilf(GameState.powerup_active[i])
 		else:
 			btn.modulate = Color(1, 1, 1, 1.0)
 			btn.disabled = false
-			timer.text = "Ready"
+			btn.text = base + "\nReady"
 
 
 func _on_powerup_pressed(index: int) -> void:
@@ -463,24 +700,23 @@ func _on_powerup_pressed(index: int) -> void:
 
 
 func _update_shop() -> void:
-	if upgrades_panel == null:
+	if upgrades_panel == null or speed_btn == null:
 		return
-	_set_shop_btn(speed_btn, "Movement Speed  (Lv %d)" % GameState.speed_level, GameState.speed_cost())
-	_set_shop_btn(reach_btn, "Interaction Distance  (Lv %d)" % GameState.reach_level, GameState.reach_cost())
-	_set_shop_btn(cap_btn, "Carrying Capacity  (Lv %d)" % GameState.capacity_level, GameState.capacity_cost())
+	_set_shop_btn(speed_btn, "Movement Speed", GameState.speed_level, GameState.speed_cost())
+	_set_shop_btn(reach_btn, "Interaction Distance", GameState.reach_level, GameState.reach_cost())
+	_set_shop_btn(cap_btn, "Carrying Capacity", GameState.capacity_level, GameState.capacity_cost())
 	for i in 4:
-		var cost := GameState.powerup_cost(i)
-		var lvl := GameState.powerup_levels[i]
-		_set_shop_btn(powerup_shop_btns[i], "%s  (Lv %d)" % [GameState.POWERUP_NAMES[i], lvl], cost)
+		_set_shop_btn(powerup_shop_btns[i], GameState.POWERUP_NAMES[i], GameState.powerup_levels[i], GameState.powerup_cost(i))
 
 
-func _set_shop_btn(btn: Button, name_text: String, cost: int) -> void:
+func _set_shop_btn(btn: Button, name_text: String, level: int, cost: int) -> void:
 	if btn == null:
 		return
 	var hbox: HBoxContainer = btn.get_child(0)
 	var lbl: Label = hbox.get_node("NameLabel")
 	var cost_lbl: Label = hbox.get_node("CostLabel")
-	lbl.text = name_text
+	var lv_text := "MAX" if level >= 4 and cost < 0 else "Lv %d" % level
+	lbl.text = "%s   (%s)" % [name_text, lv_text]
 	if cost < 0:
 		cost_lbl.text = "MAX"
 		btn.disabled = true
@@ -491,28 +727,47 @@ func _set_shop_btn(btn: Button, name_text: String, cost: int) -> void:
 
 func _buy_speed() -> void:
 	if GameState.try_buy_speed():
-		_update_shop()
+		Sfx.play("upgrade")
+		show_toast("Movement speed upgraded!")
+	else:
+		Sfx.play("error", 0.8, -8.0)
+	_update_shop()
 
 
 func _buy_reach() -> void:
 	if GameState.try_buy_reach():
-		_update_shop()
+		Sfx.play("upgrade")
+		show_toast("Interaction distance upgraded!")
+	else:
+		Sfx.play("error", 0.8, -8.0)
+	_update_shop()
 
 
 func _buy_cap() -> void:
 	if GameState.try_buy_capacity():
-		_update_shop()
+		Sfx.play("upgrade")
+		show_toast("Carrying capacity upgraded!")
+		_update_capacity()
+	else:
+		Sfx.play("error", 0.8, -8.0)
+	_update_shop()
 
 
 func _buy_powerup(index: int) -> void:
 	if GameState.try_buy_powerup(index):
-		_update_shop()
+		Sfx.play("upgrade")
+		show_toast("%s upgraded!" % GameState.POWERUP_NAMES[index])
 		_refresh_powerups()
+	else:
+		Sfx.play("error", 0.8, -8.0)
+	_update_shop()
 
 
 func toggle_upgrades() -> void:
 	if GameState.won:
 		return
+	if pause_panel.visible:
+		pause_panel.visible = false
 	upgrades_panel.visible = not upgrades_panel.visible
 	get_tree().paused = upgrades_panel.visible
 	if upgrades_panel.visible:
@@ -526,6 +781,8 @@ func toggle_upgrades() -> void:
 func toggle_pause() -> void:
 	if GameState.won:
 		return
+	if upgrades_panel.visible:
+		upgrades_panel.visible = false
 	var paused := not get_tree().paused
 	get_tree().paused = paused
 	pause_panel.visible = paused
@@ -538,6 +795,7 @@ func toggle_pause() -> void:
 func show_win() -> void:
 	get_tree().paused = true
 	win_panel.visible = true
+	win_stats_label.text = "All 852 products stocked!\nTotal cash earned: $%d\n\nThanks for playing." % GameState.cash
 	player.lock_cursor(false)
 
 
@@ -547,11 +805,14 @@ func _restart() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if get_tree().paused:
-		if event.is_action_pressed("pause"):
-			toggle_pause()
+	if GameState.won:
 		return
 	if event.is_action_pressed("upgrades"):
 		toggle_upgrades()
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("pause"):
-		toggle_pause()
+		if upgrades_panel.visible:
+			toggle_upgrades()
+		else:
+			toggle_pause()
+		get_viewport().set_input_as_handled()
