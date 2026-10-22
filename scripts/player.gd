@@ -79,9 +79,9 @@ func _ready() -> void:
 func _build_basket() -> void:
 	var basket := Node3D.new()
 	basket.name = "Basket"
-	basket.position = Vector3(0.4, -0.75, -1.1)
-	basket.rotation = Vector3(deg_to_rad(-6.0), deg_to_rad(-12.0), 0.0)
-	basket.scale = Vector3(0.78, 0.78, 0.78)
+	basket.position = Vector3(0.55, -1.03, -1.24)
+	basket.rotation = Vector3(deg_to_rad(-8.0), deg_to_rad(-14.0), 0.0)
+	basket.scale = Vector3(0.58, 0.58, 0.58)
 	camera.add_child(basket)
 
 	var steel := ProductShapes._mat(Color(0.16, 0.46, 0.37), 0.25, 0.42)

@@ -3,9 +3,15 @@ extends Node
 signal cash_changed
 signal upgrades_changed
 signal progress_changed
+signal level_changed(level: int, bonus: int)
 signal powerup_state_changed(index: int)
 
 const TOTAL_PRODUCTS: int = 852
+const LEVEL_TARGETS: Array[int] = [100, 250, 450, 650, 852]
+const LEVEL_BONUSES: Array[int] = [50, 100, 150, 250, 0]
+const LEVEL_NAMES: PackedStringArray = [
+	"Rookie Stocker", "Aisle Apprentice", "Shelf Pro", "Store Expert", "Clean Champion"
+]
 const DEPARTMENT_NAMES: PackedStringArray = [
 	"Fruits", "Dairy", "Drinks", "Snacks", "Cleaning", "Frozen"
 ]
@@ -20,6 +26,7 @@ const DEPARTMENT_COLORS: Array[Color] = [
 
 var cash: int = 0
 var placed: int = 0
+var level: int = 1
 var won: bool = false
 
 var speed_level: int = 0
@@ -44,6 +51,7 @@ const _POWERUP_UPGRADE: Array[int] = [90, 180, 350]
 func reset() -> void:
 	cash = 0
 	placed = 0
+	level = 1
 	won = false
 	speed_level = 0
 	reach_level = 0
@@ -63,9 +71,31 @@ func add_cash(v: int) -> void:
 
 func add_placed(n: int = 1) -> void:
 	placed += n
-	if placed >= TOTAL_PRODUCTS and not won:
-		won = true
+	if not won:
+		while level < LEVEL_TARGETS.size() and placed >= LEVEL_TARGETS[level - 1] and placed < TOTAL_PRODUCTS:
+			var bonus: int = LEVEL_BONUSES[level - 1]
+			level += 1
+			if bonus > 0:
+				cash += bonus
+				cash_changed.emit()
+			level_changed.emit(level, bonus)
+		if placed >= TOTAL_PRODUCTS:
+			won = true
 	progress_changed.emit()
+
+func level_target() -> int:
+	return LEVEL_TARGETS[clampi(level - 1, 0, LEVEL_TARGETS.size() - 1)]
+
+func level_bonus() -> int:
+	return LEVEL_BONUSES[clampi(level - 1, 0, LEVEL_BONUSES.size() - 1)]
+
+func level_name() -> String:
+	return LEVEL_NAMES[clampi(level - 1, 0, LEVEL_NAMES.size() - 1)]
+
+func level_progress() -> float:
+	var start := 0 if level <= 1 else LEVEL_TARGETS[level - 2]
+	var span := maxi(1, level_target() - start)
+	return clampf(float(placed - start) / float(span), 0.0, 1.0)
 
 func player_speed() -> float:
 	return 3.5 + speed_level * 0.7

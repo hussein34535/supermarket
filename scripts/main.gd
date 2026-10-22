@@ -3,24 +3,45 @@ extends Node3D
 const TOTAL := 852
 
 var products_root: Node3D
+var people_root: Node3D
 var shelves: Array[Shelf] = []
 var all_products: Array[Product] = []
+var customers: Array[Person] = []
 var player: Player
 var ui: CanvasLayer
 var floor_products: Array[Product] = []
 
 var _rng := RandomNumberGenerator.new()
+var _customer_paths: Array = []
+var _customer_count: int = 0
+var _checkout_beep: float = 7.0
+var _bill_green: StandardMaterial3D
+var _bill_cream: StandardMaterial3D
 
 
 func _ready() -> void:
 	_rng.randomize()
 	GameState.reset()
+	_bill_green = ProductShapes._mat(Color(0.40, 0.68, 0.43), 0.0, 0.45, 0.05)
+	_bill_cream = ProductShapes._mat(Color(0.88, 0.86, 0.70), 0.0, 0.5)
 	_setup_environment()
 	_build_store()
 	_spawn_player()
 	_spawn_products()
+	_build_people()
+	_build_cash_pickups()
 	_setup_ui()
+	GameState.level_changed.connect(_on_level_changed)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _process(delta: float) -> void:
+	if GameState.won or get_tree().paused:
+		return
+	_checkout_beep -= delta
+	if _checkout_beep <= 0.0:
+		_checkout_beep = _rng.randf_range(5.0, 13.0)
+		Sfx.play("beep", _rng.randf_range(0.92, 1.1), -20.0)
 
 
 func _setup_environment() -> void:
@@ -252,15 +273,57 @@ func _build_checkouts() -> void:
 	var base_mat := ProductShapes._mat(Color(0.35, 0.42, 0.55), 0.2, 0.5)
 	var belt_mat := ProductShapes._mat(Color(0.12, 0.12, 0.14), 0.0, 0.85)
 	var reg_mat := ProductShapes._mat(Color(0.18, 0.2, 0.24), 0.35, 0.4)
-	var screen_mat := ProductShapes._mat(Color(0.35, 0.9, 1.0), 0.0, 0.2, 1.6)
+	var screen_mat := ProductShapes._mat(Color(0.20, 0.46, 0.62), 0.0, 0.25, 0.45)
+	var screen_frame := ProductShapes._mat(Color(0.07, 0.08, 0.10), 0.25, 0.42)
 	var pole_mat := ProductShapes._mat(Color(0.55, 0.57, 0.6), 0.7, 0.3)
+	var paper_mat := ProductShapes._mat(Color(0.74, 0.61, 0.44), 0.0, 0.82)
+	var bag_band := ProductShapes._mat(Color(0.12, 0.36, 0.23), 0.0, 0.6)
+	var money_mat := ProductShapes._mat(Color(0.42, 0.70, 0.45), 0.0, 0.5, 0.04)
+	var money_dark := ProductShapes._mat(Color(0.32, 0.58, 0.36), 0.0, 0.55)
+	var gold_mat := ProductShapes._mat(Color(0.95, 0.74, 0.24), 0.7, 0.28)
+	var mat_mat := ProductShapes._mat(Color(0.19, 0.22, 0.21), 0.0, 0.9)
+	var mat_edge := ProductShapes._mat(Color(0.14, 0.34, 0.22), 0.0, 0.75)
+	var open_mat := ProductShapes._mat(Color(0.25, 0.85, 0.36), 0.0, 0.35, 0.9)
 	for i in 3:
 		var cx := -7.0 + i * 7.0
+		_wall_box(Vector3(3.4, 0.02, 2.4), Vector3(cx, 0.012, 12.15), mat_mat, false)
+		_wall_box(Vector3(3.4, 0.012, 0.06), Vector3(cx, 0.025, 10.97), mat_edge, false)
+		_wall_box(Vector3(3.4, 0.012, 0.06), Vector3(cx, 0.025, 13.33), mat_edge, false)
 		_wall_box(Vector3(3.4, 1.0, 1.0), Vector3(cx, 0.5, 11.5), base_mat)
 		_wall_box(Vector3(2.2, 0.06, 0.72), Vector3(cx, 1.03, 11.5), belt_mat, false)
+		_wall_box(Vector3(3.0, 0.06, 0.22), Vector3(cx, 1.04, 10.95), pole_mat, false)
 		_wall_box(Vector3(0.5, 0.3, 0.42), Vector3(cx + 1.3, 1.2, 11.5), reg_mat, false)
+		_wall_box(Vector3(0.46, 0.32, 0.02), Vector3(cx + 1.3, 1.35, 11.30), screen_frame, false)
 		_wall_box(Vector3(0.4, 0.26, 0.03), Vector3(cx + 1.3, 1.35, 11.28), screen_mat, false)
+		_wall_box(Vector3(0.42, 0.28, 0.02), Vector3(cx + 1.3, 1.34, 11.71), screen_frame, false)
+		_wall_box(Vector3(0.34, 0.20, 0.025), Vector3(cx + 1.3, 1.34, 11.695), screen_mat, false)
 		_wall_box(Vector3(0.24, 0.12, 0.2), Vector3(cx + 0.85, 1.12, 11.5), reg_mat, false)
+		_wall_box(Vector3(0.34, 0.03, 0.24), Vector3(cx + 0.35, 1.08, 11.45), reg_mat, false)
+		for b in 4:
+			_wall_box(Vector3(0.15, 0.012, 0.065), Vector3(cx + 0.32 + b * 0.006, 1.10 + b * 0.012, 11.44), money_mat if b % 2 == 0 else money_dark, false)
+		for c in 3:
+			var coin := CylinderMesh.new()
+			coin.top_radius = 0.024
+			coin.bottom_radius = 0.024
+			coin.height = 0.008
+			coin.radial_segments = 10
+			var cmi := MeshInstance3D.new()
+			cmi.mesh = coin
+			cmi.material_override = gold_mat
+			cmi.position = Vector3(cx + 0.57 + c * 0.03, 1.085 + c * 0.007, 11.53)
+			add_child(cmi)
+		_wall_box(Vector3(0.05, 0.18, 0.05), Vector3(cx + 0.9, 1.1, 11.95), pole_mat, false)
+		_wall_box(Vector3(0.20, 0.24, 0.05), Vector3(cx + 0.9, 1.31, 11.95), reg_mat, false)
+		_wall_box(Vector3(0.16, 0.14, 0.018), Vector3(cx + 0.9, 1.34, 11.92), screen_frame, false)
+		_wall_box(Vector3(0.14, 0.12, 0.015), Vector3(cx + 0.9, 1.34, 11.915), screen_mat, false)
+		_wall_box(Vector3(0.52, 0.05, 0.55), Vector3(cx - 1.25, 1.03, 11.5), pole_mat, false)
+		for b in 3:
+			_wall_box(Vector3(0.24, 0.3, 0.17), Vector3(cx - 1.3 + b * 0.01, 1.20, 11.43), paper_mat, false)
+			_wall_box(Vector3(0.245, 0.055, 0.175), Vector3(cx - 1.3 + b * 0.01, 1.16, 11.43), bag_band, false)
+			_wall_box(Vector3(0.03, 0.12, 0.02), Vector3(cx - 1.42 + b * 0.01, 1.36, 11.43), paper_mat, false)
+			_wall_box(Vector3(0.03, 0.12, 0.02), Vector3(cx - 1.18 + b * 0.01, 1.36, 11.43), paper_mat, false)
+		_wall_box(Vector3(0.20, 0.09, 0.11), Vector3(cx + 0.65, 1.13, 11.62), reg_mat, false)
+		_wall_box(Vector3(0.13, 0.045, 0.065), Vector3(cx + 0.65, 1.13, 11.66), open_mat, false)
 		var pole := CylinderMesh.new()
 		pole.top_radius = 0.03
 		pole.bottom_radius = 0.03
@@ -347,6 +410,97 @@ func _build_decor() -> void:
 	_build_produce()
 	_build_cleaning_props()
 	_build_sale_signs()
+	_build_entry_mat()
+	_build_aisle_signs()
+	_build_wall_clock()
+
+
+func _build_entry_mat() -> void:
+	var mat := ProductShapes._mat(Color(0.10, 0.28, 0.18), 0.0, 0.9)
+	var border := ProductShapes._mat(Color(0.82, 0.72, 0.42), 0.1, 0.5)
+	_wall_box(Vector3(4.4, 0.012, 1.6), Vector3(0, 0.014, 14.9), mat, false)
+	_wall_box(Vector3(4.5, 0.01, 0.07), Vector3(0, 0.019, 14.15), border, false)
+	_wall_box(Vector3(4.5, 0.01, 0.07), Vector3(0, 0.019, 15.65), border, false)
+
+
+func _build_wall_clock() -> void:
+	var cx := 21.79
+	var cy := 3.05
+	var cz := 8.4
+	var rim_mat := ProductShapes._mat(Color(0.16, 0.17, 0.19), 0.5, 0.4)
+	var face_mat := ProductShapes._mat(Color(0.95, 0.94, 0.89), 0.0, 0.55)
+	var hand_mat := ProductShapes._mat(Color(0.06, 0.06, 0.07), 0.2, 0.4)
+	var second_mat := ProductShapes._mat(Color(0.72, 0.14, 0.10), 0.0, 0.4)
+	var rim := CylinderMesh.new()
+	rim.top_radius = 0.40
+	rim.bottom_radius = 0.40
+	rim.height = 0.05
+	rim.radial_segments = 28
+	var rmi := MeshInstance3D.new()
+	rmi.mesh = rim
+	rmi.material_override = rim_mat
+	rmi.position = Vector3(21.84, cy, cz)
+	rmi.rotation.z = PI * 0.5
+	add_child(rmi)
+	var face := CylinderMesh.new()
+	face.top_radius = 0.345
+	face.bottom_radius = 0.345
+	face.height = 0.05
+	face.radial_segments = 28
+	var fmi := MeshInstance3D.new()
+	fmi.mesh = face
+	fmi.material_override = face_mat
+	fmi.position = Vector3(cx, cy, cz)
+	fmi.rotation.z = PI * 0.5
+	add_child(fmi)
+	for i in 12:
+		var a := TAU * float(i) / 12.0
+		var tick := _wall_box(Vector3(0.012, 0.055, 0.02), Vector3(cx - 0.032, cy + cos(a) * 0.30, cz + sin(a) * 0.30), hand_mat, false)
+		tick.rotation.x = a
+	var hour_hand := _wall_box(Vector3(0.014, 0.17, 0.018), Vector3(cx - 0.04, cy + cos(2.2) * 0.085, cz + sin(2.2) * 0.085), hand_mat, false)
+	hour_hand.rotation.x = 2.2
+	var minute_hand := _wall_box(Vector3(0.012, 0.25, 0.016), Vector3(cx - 0.045, cy + cos(-0.55) * 0.125, cz + sin(-0.55) * 0.125), hand_mat, false)
+	minute_hand.rotation.x = -0.55
+	var second_hand := _wall_box(Vector3(0.007, 0.27, 0.01), Vector3(cx - 0.05, cy + cos(1.1) * 0.135, cz + sin(1.1) * 0.135), second_mat, false)
+	second_hand.rotation.x = 1.1
+	var cap := SphereMesh.new()
+	cap.radius = 0.028
+	cap.height = 0.056
+	cap.radial_segments = 10
+	cap.rings = 6
+	var cmi := MeshInstance3D.new()
+	cmi.mesh = cap
+	cmi.material_override = hand_mat
+	cmi.position = Vector3(cx - 0.05, cy, cz)
+	add_child(cmi)
+
+
+func _build_aisle_signs() -> void:
+	var board_mat := ProductShapes._mat(Color(0.06, 0.34, 0.22), 0.1, 0.45, 0.08)
+	var gold := ProductShapes._mat(Color(0.93, 0.76, 0.32), 0.3, 0.35, 0.25)
+	var hang := _metal_hang()
+	var spots: Array[Dictionary] = [
+		{"pos": Vector3(-16.0, 3.28, -2.0), "text": "FRUITS  •  DAIRY"},
+		{"pos": Vector3(16.0, 3.28, -2.0), "text": "CLEANING  •  FROZEN"},
+		{"pos": Vector3(0.0, 3.28, -10.8), "text": "SNACKS  •  DRINKS"},
+	]
+	for info in spots:
+		var pos: Vector3 = info["pos"]
+		var text: String = info["text"]
+		_wall_box(Vector3(4.3, 0.5, 0.06), pos, board_mat, false)
+		_wall_box(Vector3(4.3, 0.035, 0.07), pos + Vector3(0, -0.26, 0.005), gold, false)
+		var lbl := Label3D.new()
+		lbl.text = text
+		lbl.font = ProductShapes.sign_font()
+		lbl.font_size = 38
+		lbl.pixel_size = 0.0038
+		lbl.modulate = Color(0.98, 0.96, 0.88)
+		lbl.outline_size = 8
+		lbl.position = pos + Vector3(0, 0.02, 0.045)
+		lbl.double_sided = true
+		add_child(lbl)
+		for side in [-1.0, 1.0]:
+			_wall_box(Vector3(0.016, 0.55, 0.016), pos + Vector3(side * 1.65, 0.5, 0), hang, false)
 
 
 func _build_plants() -> void:
@@ -665,6 +819,91 @@ func _spawn_products() -> void:
 			spawn_floor_product(dept, pos, false)
 
 
+func _build_people() -> void:
+	people_root = Node3D.new()
+	people_root.name = "People"
+	add_child(people_root)
+
+	for cx in [-7.0, 0.0, 7.0]:
+		var cashier := Person.new()
+		cashier.configure_static(_rng, Vector3(cx + 1.3, 0, 10.82), PI, true, false)
+		people_root.add_child(cashier)
+		var queued := Person.new()
+		queued.configure_static(_rng, Vector3(cx + 0.2, 0, 13.3), 0.0, false, true)
+		people_root.add_child(queued)
+
+	var central: Array[Vector3] = [
+		Vector3(-6.2, 0, 9.2), Vector3(-6.4, 0, 3.0), Vector3(-8.0, 0, -2.4),
+		Vector3(-6.2, 0, -9.6), Vector3(0.0, 0, -10.6), Vector3(6.2, 0, -9.6),
+		Vector3(8.0, 0, -2.4), Vector3(6.4, 0, 3.0), Vector3(6.2, 0, 9.2),
+	]
+	var left_aisle: Array[Vector3] = [
+		Vector3(-9.6, 0, 2.6), Vector3(-14.0, 0, 2.6), Vector3(-19.8, 0, 2.6),
+		Vector3(-19.8, 0, -6.8), Vector3(-14.0, 0, -6.8), Vector3(-9.6, 0, -6.8),
+	]
+	var right_aisle: Array[Vector3] = [
+		Vector3(9.6, 0, -6.8), Vector3(14.0, 0, -6.8), Vector3(19.8, 0, -6.8),
+		Vector3(19.8, 0, 2.6), Vector3(14.0, 0, 2.6), Vector3(9.6, 0, 2.6),
+	]
+	var front: Array[Vector3] = [
+		Vector3(-4.3, 0, 13.5), Vector3(4.3, 0, 13.5), Vector3(4.6, 0, 9.2),
+		Vector3(0.4, 0, 8.4), Vector3(-4.6, 0, 9.2),
+	]
+	var near: Array[Vector3] = [
+		Vector3(-3.2, 0, 6.2), Vector3(-3.6, 0, 0.8), Vector3(-2.7, 0, -4.2),
+		Vector3(0.0, 0, -7.2), Vector3(4.4, 0, -3.6), Vector3(5.2, 0, 2.0),
+		Vector3(5.2, 0, 6.6), Vector3(0.8, 0, 9.6),
+	]
+	_customer_paths = [central, left_aisle, right_aisle, front, near]
+	_spawn_customer(near, 2, true)
+	_spawn_customer(near, 5, false, true)
+	_spawn_customer(left_aisle, 1, true)
+	_spawn_customer(right_aisle, 4, true)
+	_spawn_customer(front, 2, false)
+	_spawn_customer(central, 5, true)
+
+
+func _spawn_customer(path_points: Array[Vector3], start_index: int, basket: bool, cart: bool = false) -> void:
+	if people_root == null:
+		return
+	var person := Person.new()
+	person.configure_customer(_rng, path_points, start_index, basket, cart)
+	people_root.add_child(person)
+	customers.append(person)
+	_customer_count += 1
+
+
+func _build_cash_pickups() -> void:
+	for i in 8:
+		var pos := _random_floor_position()
+		var coin := CashPickup.new()
+		coin.setup(5)
+		coin.position = Vector3(pos.x, 0, pos.z)
+		coin.collected.connect(_on_cash_collected)
+		add_child(coin)
+
+
+func _on_cash_collected(pos: Vector3, value: int) -> void:
+	_spawn_float_text(pos + Vector3(0, 0.35, 0), "+$%d" % value, Color(1.0, 0.88, 0.4))
+
+
+func _spawn_extra_customer() -> void:
+	if _customer_paths.is_empty():
+		return
+	var path_points: Array[Vector3] = _customer_paths[_customer_count % _customer_paths.size()]
+	var start_index := _rng.randi_range(0, maxi(0, path_points.size() - 1))
+	_spawn_customer(path_points, start_index, _rng.randf() < 0.65)
+
+
+func _on_level_changed(new_level: int, bonus: int) -> void:
+	Sfx.play("milestone", 1.04, -2.0)
+	_spawn_extra_customer()
+	if new_level >= 5:
+		_spawn_extra_customer()
+	if player != null and is_instance_valid(player):
+		_spawn_money_burst(player.global_position + Vector3(0, 1.35, 0), 4 + bonus / 25)
+
+
 func _random_floor_position() -> Vector3:
 	for attempt in 200:
 		var x := _rng.randf_range(-20.0, 20.0)
@@ -718,6 +957,7 @@ func on_product_placed(shelf: Shelf, dept: int) -> void:
 	GameState.add_placed(1)
 	Sfx.play("place", randf_range(0.95, 1.08))
 	_spawn_float_text(shelf.global_position + Vector3(0, 2.1, 0), "+$1", Color(0.55, 1.0, 0.6))
+	_spawn_money_bill(shelf.global_position + Vector3(_rng.randf_range(-0.8, 0.8), 1.9, _rng.randf_range(-0.2, 0.2)))
 	if GameState.placed % 50 == 0 and GameState.placed < TOTAL:
 		ui.show_toast("%d / %d stocked!" % [GameState.placed, GameState.TOTAL_PRODUCTS], Color(0.55, 1.0, 0.6))
 		Sfx.play("milestone")
@@ -783,6 +1023,49 @@ func _spawn_float_text(pos: Vector3, text: String, color: Color) -> void:
 	tw.tween_property(lbl, "position:y", pos.y + 0.9, 0.9).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tw.tween_property(lbl, "modulate:a", 0.0, 0.9).set_delay(0.25)
 	tw.chain().tween_callback(lbl.queue_free)
+
+
+func _spawn_money_bill(pos: Vector3) -> void:
+	var bill := Node3D.new()
+	bill.position = pos
+	bill.rotation = Vector3(_rng.randf_range(-0.5, 0.5), _rng.randf_range(0.0, TAU), _rng.randf_range(-0.5, 0.5))
+	add_child(bill)
+	var paper := BoxMesh.new()
+	paper.size = Vector3(0.19, 0.006, 0.09)
+	var pmi := MeshInstance3D.new()
+	pmi.mesh = paper
+	pmi.material_override = _bill_green
+	pmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bill.add_child(pmi)
+	var band_mesh := BoxMesh.new()
+	band_mesh.size = Vector3(0.035, 0.007, 0.092)
+	var bmi := MeshInstance3D.new()
+	bmi.mesh = band_mesh
+	bmi.material_override = _bill_cream
+	bmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bmi.position.x = -0.045
+	bill.add_child(bmi)
+	var mark := Label3D.new()
+	mark.text = "$"
+	mark.font = ProductShapes.sign_font()
+	mark.font_size = 30
+	mark.pixel_size = 0.0008
+	mark.modulate = Color(0.18, 0.40, 0.22)
+	mark.position = Vector3(0.035, 0.006, 0)
+	mark.rotation.x = -PI * 0.5
+	mark.no_depth_test = true
+	bill.add_child(mark)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(bill, "position", bill.position + Vector3(_rng.randf_range(-0.45, 0.45), _rng.randf_range(0.65, 1.1), _rng.randf_range(-0.35, 0.35)), 0.85).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(bill, "rotation", Vector3(_rng.randf_range(-3.0, 3.0), _rng.randf_range(2.0, 6.0), _rng.randf_range(-2.0, 2.0)), 0.85)
+	tw.tween_property(bill, "scale", Vector3(0.1, 0.1, 0.1), 0.3).set_delay(0.55)
+	tw.chain().tween_callback(bill.queue_free)
+
+
+func _spawn_money_burst(pos: Vector3, count: int) -> void:
+	for i in mini(count, 12):
+		_spawn_money_bill(pos + Vector3(_rng.randf_range(-0.55, 0.55), _rng.randf_range(0.0, 0.6), _rng.randf_range(-0.55, 0.55)))
 
 
 func _on_won() -> void:

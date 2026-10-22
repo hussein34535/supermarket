@@ -17,6 +17,8 @@ var win_panel: PanelContainer
 var upgrades_cash_label: Label
 var win_stats_label: Label
 var start_banner: Control
+var level_banner: Control
+var _cash_tween: Tween
 
 var speed_btn: Button
 var reach_btn: Button
@@ -55,6 +57,7 @@ func _ready() -> void:
 	GameState.cash_changed.connect(_update_cash)
 	GameState.progress_changed.connect(_update_progress)
 	GameState.upgrades_changed.connect(_update_shop)
+	GameState.level_changed.connect(_on_level_changed)
 	GameState.powerup_state_changed.connect(_on_powerup_state)
 	player.stack_changed.connect(_update_capacity)
 	player.powerup_used.connect(func(_i: int) -> void: _refresh_powerups())
@@ -246,6 +249,13 @@ func _build_start_banner() -> void:
 	v.add_theme_constant_override("separation", 4)
 	panel.add_child(v)
 
+	var lvl := Label.new()
+	lvl.text = "LEVEL %d  •  %s" % [GameState.level, GameState.level_name().to_upper()]
+	lvl.add_theme_font_size_override("font_size", 14)
+	lvl.add_theme_color_override("font_color", Color(0.95, 0.84, 0.42))
+	lvl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(lvl)
+
 	var t1 := Label.new()
 	t1.text = "CLEAN THE"
 	t1.add_theme_font_size_override("font_size", 38)
@@ -260,21 +270,21 @@ func _build_start_banner() -> void:
 	v.add_child(t2)
 
 	var sub := Label.new()
-	sub.text = "Stock all 852 products on the right shelves"
+	sub.text = "Level goal: stock %d products  •  next level pays +$%d" % [GameState.level_target(), GameState.level_bonus()]
 	sub.add_theme_font_size_override("font_size", 16)
 	sub.modulate = Color(1, 1, 1, 0.85)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(sub)
 
 	var sub2 := Label.new()
-	sub2.text = "WASD move   •   Mouse look   •   E pick / place"
+	sub2.text = "WASD move   •   Mouse look   •   E pick / place   •   Meet your customers"
 	sub2.add_theme_font_size_override("font_size", 13)
 	sub2.modulate = Color(1, 1, 1, 0.55)
 	sub2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(sub2)
 
 	var tw := create_tween()
-	tw.tween_interval(4.5)
+	tw.tween_interval(5.0)
 	tw.tween_property(start_banner, "modulate:a", 0.0, 0.8)
 	tw.tween_callback(start_banner.hide)
 
@@ -641,18 +651,89 @@ func _update_cash() -> void:
 	if upgrades_panel != null and upgrades_panel.visible:
 		_update_shop()
 	if is_inside_tree() and cash_label.is_inside_tree():
+		if _cash_tween != null and _cash_tween.is_valid():
+			_cash_tween.kill()
 		cash_label.scale = Vector2(1.18, 1.18)
-		var tw := create_tween()
-		tw.tween_property(cash_label, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK)
+		_cash_tween = create_tween()
+		_cash_tween.tween_property(cash_label, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK)
 
 
 func _update_progress() -> void:
 	if progress_label == null:
 		return
-	progress_label.text = "STOCKED  %d / %d" % [GameState.placed, GameState.TOTAL_PRODUCTS]
+	if GameState.level < GameState.LEVEL_TARGETS.size():
+		progress_label.text = "LV %d  •  %d / %d  •  NEXT %d" % [GameState.level, GameState.placed, GameState.TOTAL_PRODUCTS, GameState.level_target()]
+	else:
+		progress_label.text = "LV %d  •  %d / %d  •  FINAL" % [GameState.level, GameState.placed, GameState.TOTAL_PRODUCTS]
 	progress_bar.value = GameState.placed
 	if GameState.won and win_panel != null and not win_panel.visible:
 		show_win()
+
+
+func _on_level_changed(level: int, bonus: int) -> void:
+	_update_progress()
+	_show_level_banner(level, bonus)
+
+
+func _show_level_banner(level: int, bonus: int) -> void:
+	if level_banner != null and is_instance_valid(level_banner):
+		level_banner.queue_free()
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.modulate = Color(1, 1, 1, 0)
+	add_child(root)
+	level_banner = root
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _style(Color(0.03, 0.10, 0.06, 0.94), Color(0.45, 1.0, 0.55, 0.7), 18, 28, 2))
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(panel)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	panel.add_child(v)
+
+	var over := Label.new()
+	over.text = "LEVEL UP"
+	over.add_theme_font_size_override("font_size", 14)
+	over.add_theme_color_override("font_color", Color(0.95, 0.84, 0.42))
+	over.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(over)
+
+	var big := Label.new()
+	big.text = "LEVEL %d" % level
+	big.add_theme_font_size_override("font_size", 44)
+	big.add_theme_color_override("font_color", Color(0.55, 1.0, 0.62))
+	big.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(big)
+
+	var name_label := Label.new()
+	name_label.text = GameState.LEVEL_NAMES[clampi(level - 1, 0, GameState.LEVEL_NAMES.size() - 1)]
+	name_label.add_theme_font_size_override("font_size", 20)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(name_label)
+
+	var reward := Label.new()
+	if bonus > 0:
+		reward.text = "+$%d bonus  •  new customers arrived" % bonus
+	else:
+		reward.text = "Final level  •  stock all 852 products"
+	reward.add_theme_font_size_override("font_size", 14)
+	reward.modulate = Color(1, 1, 1, 0.7)
+	reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(reward)
+
+	var tw := create_tween()
+	tw.tween_property(root, "modulate:a", 1.0, 0.18)
+	tw.tween_interval(2.2)
+	tw.tween_property(root, "modulate:a", 0.0, 0.55)
+	tw.tween_callback(root.queue_free)
 
 
 func _update_capacity() -> void:
@@ -795,7 +876,7 @@ func toggle_pause() -> void:
 func show_win() -> void:
 	get_tree().paused = true
 	win_panel.visible = true
-	win_stats_label.text = "All 852 products stocked!\nTotal cash earned: $%d\n\nThanks for playing." % GameState.cash
+	win_stats_label.text = "All 852 products stocked!\nFinal level: 5  •  Clean Champion\nCash on hand: $%d\n\nThanks for playing." % GameState.cash
 	player.lock_cursor(false)
 
 
