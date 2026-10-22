@@ -346,6 +346,21 @@ func _build_mobile() -> void:
 	pause_btn.pressed.connect(toggle_pause)
 	mobile_root.add_child(pause_btn)
 
+	var pu_row := HBoxContainer.new()
+	pu_row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	pu_row.offset_left = -400
+	pu_row.offset_right = -20
+	pu_row.offset_top = -240
+	pu_row.offset_bottom = -180
+	pu_row.add_theme_constant_override("separation", 8)
+	mobile_root.add_child(pu_row)
+	for i in 4:
+		var pu_btn := Button.new()
+		pu_btn.text = "%d" % (i + 1)
+		pu_btn.custom_minimum_size = Vector2(70, 56)
+		pu_btn.pressed.connect(_on_powerup_pressed.bind(i))
+		pu_row.add_child(pu_btn)
+
 	var is_mobile := DisplayServer.is_touchscreen_available() or OS.has_feature("mobile")
 	mobile_root.visible = is_mobile
 	if is_mobile:
