@@ -1,0 +1,12 @@
+# Godot
+.godot/
+*.translation
+export.cfg
+export_presets.cfg
+
+# Tools (Godot binary - download separately)
+tools/
+
+# OS
+.DS_Store
+Thumbs.db
