@@ -28,6 +28,7 @@ var _rng := RandomNumberGenerator.new()
 var _viewmodel: Node3D
 var _picker: Node3D
 var _tool: Node3D
+var _grab_material: ShaderMaterial
 var _bag_pivot: Node3D
 var _bag_body: Node3D
 var _grab_anim: float = 0.0
@@ -126,8 +127,18 @@ func _build_viewmodel() -> void:
 	_picker.add_child(_tool)
 	_tool.add_child(grabber)
 	grabber.position = Vector3(0.47, -0.09, 0.0)
+	var grab_shader: Shader = load("res://assets/shaders/grabber.gdshader")
 	for mi in _tool.find_children("*", "MeshInstance3D", true, false):
 		var mesh_inst := mi as MeshInstance3D
+		var source_mat := mesh_inst.mesh.surface_get_material(0) as StandardMaterial3D
+		if source_mat != null:
+			_grab_material = ShaderMaterial.new()
+			_grab_material.shader = grab_shader
+			_grab_material.set_shader_parameter("albedo_tex", source_mat.albedo_texture)
+			_grab_material.set_shader_parameter("normal_tex", source_mat.normal_texture)
+			_grab_material.set_shader_parameter("orm_tex", source_mat.metallic_texture)
+			_grab_material.set_shader_parameter("specular_value", source_mat.metallic_specular)
+			mesh_inst.material_override = _grab_material
 		mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var wrist_l := Vector3(-0.43, -0.39, -0.56)
@@ -567,7 +578,12 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	_picker.position.y = lerpf(_picker.position.y, -_grab_anim * 0.006, minf(delta * 14.0, 1.0))
 	_picker.rotation.z = lerpf(_picker.rotation.z, -move_vec.x * 0.012, minf(delta * 5.0, 1.0))
 	_picker.rotation.x = lerpf(_picker.rotation.x, -_grab_anim * 0.018, minf(delta * 10.0, 1.0))
-	_grab_anim = maxf(_grab_anim - delta * 4.5, 0.0)
+	var close := 0.0
+	if _grab_anim > 0.0:
+		close = sin((1.0 - _grab_anim) * PI)
+	if _grab_material != null:
+		_grab_material.set_shader_parameter("close", close)
+	_grab_anim = maxf(_grab_anim - delta * 3.6, 0.0)
 
 
 func _update_hint() -> void:
