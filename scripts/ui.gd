@@ -184,16 +184,17 @@ func _build_hud() -> void:
 	var bottom := HBoxContainer.new()
 	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom.add_theme_constant_override("separation", 10)
-	bottom.offset_top = -94
-	bottom.offset_bottom = -18
+	bottom.add_theme_constant_override("separation", 8)
+	bottom.offset_top = -82
+	bottom.offset_bottom = -16
 	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(bottom)
 
 	for i in 4:
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(172, 68)
-		btn.add_theme_font_size_override("font_size", 12)
+		btn.custom_minimum_size = Vector2(96, 58)
+		btn.add_theme_font_size_override("font_size", 11)
+		btn.clip_text = true
 		btn.pressed.connect(_on_powerup_pressed.bind(i))
 		_button_styles(btn, Color(0.5, 0.85, 1.0))
 		bottom.add_child(btn)
@@ -755,13 +756,14 @@ func _on_powerup_state(_index: int) -> void:
 func _refresh_powerups() -> void:
 	if powerup_buttons.is_empty():
 		return
+	var short_names: Array[String] = ["REVEAL", "PAIRS", "SHELVES", "SORT"]
 	for i in 4:
 		var btn := powerup_buttons[i]
-		var base := "[%d] %s" % [i + 1, GameState.POWERUP_NAMES[i]]
+		var base := "%d  %s" % [i + 1, short_names[i]]
 		if not GameState.powerup_unlocked(i):
-			btn.modulate = Color(1, 1, 1, 0.62)
+			btn.modulate = Color(1, 1, 1, 0.5)
 			btn.disabled = true
-			btn.text = base + "\nLocked - buy in shop"
+			btn.text = base + "\nLOCKED"
 		elif GameState.powerup_cooldowns[i] > 0.0:
 			btn.modulate = Color(1, 1, 1, 0.6)
 			btn.disabled = true
@@ -771,9 +773,9 @@ func _refresh_powerups() -> void:
 			btn.disabled = false
 			btn.text = base + "\nACTIVE %.0fs" % ceilf(GameState.powerup_active[i])
 		else:
-			btn.modulate = Color(1, 1, 1, 1.0)
+			btn.modulate = Color(1, 1, 1, 0.95)
 			btn.disabled = false
-			btn.text = base + "\nReady"
+			btn.text = base + "\nREADY"
 
 
 func _on_powerup_pressed(index: int) -> void:

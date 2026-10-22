@@ -57,9 +57,9 @@ func _setup_environment() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(1.0, 0.99, 0.96)
-	env.ambient_light_energy = 0.2
+	env.ambient_light_energy = 0.14
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.9
+	env.tonemap_exposure = 0.94
 	env.glow_enabled = true
 	env.glow_intensity = 0.28
 	env.glow_bloom = 0.05
@@ -71,15 +71,15 @@ func _setup_environment() -> void:
 	env.ssao_power = 1.5
 	env.ssao_light_affect = 0.2
 	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.08
-	env.adjustment_saturation = 1.12
+	env.adjustment_contrast = 1.12
+	env.adjustment_saturation = 1.06
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-62, -28, 0)
-	sun.light_energy = 0.42
+	sun.light_energy = 0.24
 	sun.light_color = Color(1.0, 0.97, 0.9)
 	sun.shadow_enabled = true
 	sun.shadow_opacity = 0.78
@@ -148,15 +148,50 @@ func _make_floor_texture() -> ImageTexture:
 	rng.seed = 991
 	for ty in tiles:
 		for tx in tiles:
-			var base := Color(0.71, 0.725, 0.73).lerp(Color(0.64, 0.655, 0.67), rng.randf())
+			var base := Color(0.54, 0.555, 0.55).lerp(Color(0.62, 0.63, 0.615), rng.randf())
 			for y in ts:
 				for x in ts:
 					var c := base
-					if x < 1 or y < 1:
-						c = Color(0.54, 0.56, 0.59)
-					elif rng.randf() < 0.012:
-						c = c.darkened(rng.randf_range(0.02, 0.05))
+					var grain := rng.randf_range(-0.02, 0.02)
+					c = Color(c.r + grain, c.g + grain, c.b + grain)
+					if x < 2 or y < 2:
+						c = Color(0.30, 0.31, 0.30).lerp(Color(0.40, 0.40, 0.38), rng.randf())
+					elif x > ts - 3 or y > ts - 3:
+						c = c.darkened(0.08)
 					img.set_pixel(tx * ts + x, ty * ts + y, c)
+	var stains := 24
+	for i in stains:
+		var cx := rng.randf_range(0.0, float(size))
+		var cy := rng.randf_range(0.0, float(size))
+		var radius := rng.randf_range(14.0, 62.0)
+		var strength := rng.randf_range(0.18, 0.5)
+		var tint := Color(0.2, 0.19, 0.16).lerp(Color(0.16, 0.19, 0.16), rng.randf())
+		var r := int(radius)
+		for yy in range(-r, r + 1):
+			for xx in range(-r, r + 1):
+				var dist := sqrt(float(xx * xx + yy * yy)) / radius
+				if dist >= 1.0:
+					continue
+				var px := int(cx) + xx
+				var py := int(cy) + yy
+				px = posmod(px, size)
+				py = posmod(py, size)
+				var falloff := (1.0 - dist) * (1.0 - dist) * strength
+				var c0 := img.get_pixel(px, py)
+				img.set_pixel(px, py, c0.lerp(tint, falloff))
+	for i in 90:
+		var sx := rng.randf_range(0.0, float(size))
+		var sy := rng.randf_range(0.0, float(size))
+		var ang := rng.randf_range(0.0, TAU)
+		var length := rng.randf_range(5.0, 24.0)
+		var col := Color(0.26, 0.26, 0.25) if rng.randf() < 0.65 else Color(0.76, 0.76, 0.72)
+		var dx := cos(ang)
+		var dy := sin(ang)
+		for t in range(int(length)):
+			var px := posmod(int(sx + dx * t), size)
+			var py := posmod(int(sy + dy * t), size)
+			var c0 := img.get_pixel(px, py)
+			img.set_pixel(px, py, c0.lerp(col, 0.28))
 	return ImageTexture.create_from_image(img)
 
 
@@ -165,18 +200,71 @@ func _make_ceiling_texture() -> ImageTexture:
 	var cells := 4
 	var cs := size / cells
 	var img := Image.create(size, size, false, Image.FORMAT_RGB8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 404
 	for y in size:
 		for x in size:
-			var c := Color(0.96, 0.96, 0.97)
+			var c := Color(0.66, 0.665, 0.65).lerp(Color(0.59, 0.60, 0.58), rng.randf())
 			if x % cs < 2 or y % cs < 2:
-				c = Color(0.85, 0.85, 0.87)
+				c = Color(0.40, 0.41, 0.40)
+			elif rng.randf() < 0.017:
+				c = c.darkened(rng.randf_range(0.025, 0.07))
 			img.set_pixel(x, y, c)
+	for i in 8:
+		var cx := rng.randi_range(0, size - 1)
+		var cy := rng.randi_range(0, size - 1)
+		var r := rng.randi_range(8, 30)
+		for yy in range(-r, r + 1):
+			for xx in range(-r, r + 1):
+				if xx * xx + yy * yy > r * r:
+					continue
+				var px := posmod(cx + xx, size)
+				var py := posmod(cy + yy, size)
+				var c0 := img.get_pixel(px, py)
+				img.set_pixel(px, py, c0.lerp(Color(0.52, 0.49, 0.39), 0.18))
+	return ImageTexture.create_from_image(img)
+
+
+func _make_wall_texture() -> ImageTexture:
+	var size := 256
+	var img := Image.create(size, size, false, Image.FORMAT_RGB8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1717
+	for y in size:
+		for x in size:
+			var c := Color(0.69, 0.685, 0.65).lerp(Color(0.76, 0.75, 0.71), rng.randf())
+			c = Color(c.r + rng.randf_range(-0.015, 0.015), c.g + rng.randf_range(-0.015, 0.015), c.b + rng.randf_range(-0.015, 0.015))
+			img.set_pixel(x, y, c)
+	for i in 28:
+		var sx := rng.randf_range(0.0, float(size))
+		var sy := rng.randf_range(0.0, float(size))
+		var len := rng.randf_range(6.0, 34.0)
+		var down := rng.randf() < 0.55
+		for t in range(int(len)):
+			var px := posmod(int(sx + t * 0.4), size)
+			var py := posmod(int(sy + t), size) if down else posmod(int(sy + t * 0.15), size)
+			var c0 := img.get_pixel(px, py)
+			img.set_pixel(px, py, c0.darkened(0.08))
+	for i in 14:
+		var cx := rng.randi_range(0, size - 1)
+		var cy := rng.randi_range(0, size - 1)
+		var r := rng.randi_range(3, 14)
+		for yy in range(-r, r + 1):
+			for xx in range(-r, r + 1):
+				if xx * xx + yy * yy > r * r:
+					continue
+				var px := posmod(cx + xx, size)
+				var py := posmod(cy + yy, size)
+				img.set_pixel(px, py, img.get_pixel(px, py).lerp(Color(0.28, 0.27, 0.22), 0.12))
 	return ImageTexture.create_from_image(img)
 
 
 func _build_walls() -> void:
-	var wall_mat := ProductShapes._mat(Color(0.86, 0.86, 0.84), 0.0, 0.8)
-	var base_mat := ProductShapes._mat(Color(0.28, 0.3, 0.34), 0.1, 0.6)
+	var wall_mat := ProductShapes._mat(Color(0.95, 0.94, 0.90), 0.0, 0.85)
+	wall_mat.albedo_texture = _make_wall_texture()
+	wall_mat.uv1_scale = Vector3(7, 2, 1)
+	wall_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	var base_mat := ProductShapes._mat(Color(0.18, 0.20, 0.22), 0.1, 0.6)
 	var w := 44.0
 	var d := 32.0
 	var h := 4.0
@@ -214,7 +302,7 @@ func _build_ceiling() -> void:
 	mat.roughness = 0.85
 	mi.material_override = mat
 	mi.position = Vector3(0, 4.0, 0)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	add_child(mi)
 
 
@@ -243,8 +331,8 @@ func _build_lights() -> void:
 			add_child(pmi)
 			var ol := OmniLight3D.new()
 			ol.position = Vector3(lx, 3.35, lz)
-			ol.omni_range = 10.0
-			ol.light_energy = 0.42
+			ol.omni_range = 9.5
+			ol.light_energy = 0.58
 			ol.light_color = Color(1.0, 0.98, 0.93)
 			ol.shadow_enabled = false
 			add_child(ol)
@@ -413,6 +501,128 @@ func _build_decor() -> void:
 	_build_entry_mat()
 	_build_aisle_signs()
 	_build_wall_clock()
+	_build_floor_debris()
+
+
+func _build_floor_debris() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20261022
+	var cardboard := ProductShapes._mat(Color(0.47, 0.32, 0.18), 0.0, 0.92)
+	var cardboard_light := ProductShapes._mat(Color(0.60, 0.44, 0.26), 0.0, 0.9)
+	var cardboard_dark := ProductShapes._mat(Color(0.34, 0.23, 0.13), 0.0, 0.94)
+	var tape := ProductShapes._mat(Color(0.72, 0.65, 0.46), 0.0, 0.7)
+	var paper := ProductShapes._mat(Color(0.79, 0.79, 0.73), 0.0, 0.86)
+	var wood := ProductShapes._mat(Color(0.40, 0.28, 0.16), 0.0, 0.88)
+	var bag_mat := ProductShapes._mat(Color(0.035, 0.037, 0.04), 0.04, 0.22)
+	bag_mat.clearcoat_enabled = true
+	bag_mat.clearcoat = 0.45
+	bag_mat.clearcoat_roughness = 0.28
+	var bag_fold := ProductShapes._mat(Color(0.12, 0.125, 0.13), 0.03, 0.4)
+	var hazard := ProductShapes._mat(Color(0.94, 0.67, 0.06), 0.0, 0.5)
+	var dark := ProductShapes._mat(Color(0.055, 0.055, 0.06), 0.0, 0.6)
+
+	var sheets: Array[Dictionary] = [
+		{"pos": Vector3(-4.2, 0.007, 2.6), "rot": 0.42, "w": 1.25, "d": 0.8},
+		{"pos": Vector3(5.6, 0.007, -2.4), "rot": -0.24, "w": 0.9, "d": 0.65},
+		{"pos": Vector3(-12.0, 0.007, 10.2), "rot": 1.12, "w": 1.55, "d": 0.55},
+		{"pos": Vector3(13.8, 0.007, 2.2), "rot": -0.61, "w": 1.1, "d": 0.9},
+		{"pos": Vector3(-19.6, 0.007, 6.8), "rot": 0.18, "w": 1.8, "d": 1.1},
+		{"pos": Vector3(18.9, 0.007, -9.4), "rot": -0.36, "w": 1.35, "d": 0.72},
+	]
+	for info in sheets:
+		var pos: Vector3 = info["pos"]
+		var rot: float = info["rot"]
+		var w: float = info["w"]
+		var d: float = info["d"]
+		var sheet := _wall_box(Vector3(w, 0.012, d), pos, cardboard, false)
+		sheet.rotation.y = rot
+		_wall_box(Vector3(w * 0.48, 0.002, d + 0.002), pos + Vector3(0, 0.008, 0), tape, false).rotation.y = rot
+
+	for i in 22:
+		var px := rng.randf_range(-20.5, 20.5)
+		var pz := rng.randf_range(-14.5, 14.5)
+		var pw := rng.randf_range(0.10, 0.32)
+		var pd := rng.randf_range(0.07, 0.22)
+		var scrap := _wall_box(Vector3(pw, 0.006, pd), Vector3(px, 0.005, pz), paper, false)
+		scrap.rotation.y = rng.randf_range(0.0, TAU)
+
+	for i in 5:
+		var box_pos := Vector3(-20.4 + rng.randf_range(-0.5, 0.5), 0.0, 8.0 + i * 0.72)
+		var box := _wall_box(Vector3(0.85, 0.55, 0.65), box_pos + Vector3(0, 0.275, 0), cardboard_light)
+		box.rotation.y = rng.randf_range(-0.12, 0.12)
+		var flap := _wall_box(Vector3(0.83, 0.018, 0.3), box_pos + Vector3(0, 0.55, -0.28), cardboard, false)
+		flap.rotation.x = -0.55
+		var label := _wall_box(Vector3(0.28, 0.18, 0.012), box_pos + Vector3(0.14, 0.3, -0.33), tape, false)
+		label.rotation.z = 0.06
+
+	for i in 6:
+		var pallet_z := -14.6
+		var pallet_x := 9.0 + i * 0.18
+		_wall_box(Vector3(1.05, 0.055, 1.15), Vector3(pallet_x, 0.03, pallet_z), wood, false)
+	for i in 4:
+		_wall_box(Vector3(1.02, 0.08, 0.12), Vector3(9.5, 0.065, -14.6 - 0.44 + i * 0.3), cardboard, false)
+	var pallet_stack := _wall_box(Vector3(1.0, 0.7, 0.9), Vector3(9.5, 0.43, -14.6), cardboard_light, false)
+	pallet_stack.rotation.y = 0.04
+	_wall_box(Vector3(0.72, 0.08, 0.9), Vector3(9.5, 0.8, -14.6), cardboard_dark, false)
+
+	var bag_spots: Array[Vector3] = [
+		Vector3(-21.0, 0.0, -14.3), Vector3(20.8, 0.0, 12.9), Vector3(-20.7, 0.0, 13.6),
+		Vector3(19.8, 0.0, -3.4), Vector3(-2.2, 0.0, 12.1),
+	]
+	for p in bag_spots:
+		var root := Node3D.new()
+		root.position = p
+		add_child(root)
+		var s := rng.randf_range(0.8, 1.05)
+		root.scale = Vector3(s, s, s)
+		for j in 3:
+			var sph := SphereMesh.new()
+			sph.radius = 0.34 + j * 0.035
+			sph.height = sph.radius * 2.0
+			sph.radial_segments = 9
+			sph.rings = 6
+			var mi := MeshInstance3D.new()
+			mi.mesh = sph
+			mi.material_override = bag_mat
+			mi.position = Vector3(rng.randf_range(-0.18, 0.18), 0.28 + j * 0.09, rng.randf_range(-0.12, 0.12))
+			mi.scale = Vector3(1.0, 0.78, 0.85)
+			root.add_child(mi)
+		var knot := SphereMesh.new()
+		knot.radius = 0.1
+		knot.height = 0.2
+		knot.radial_segments = 8
+		knot.rings = 5
+		var kmi := MeshInstance3D.new()
+		kmi.mesh = knot
+		kmi.material_override = bag_fold
+		kmi.position = Vector3(0, 0.62, 0)
+		root.add_child(kmi)
+		var crease_mesh := BoxMesh.new()
+		crease_mesh.size = Vector3(0.7, 0.012, 0.02)
+		var crease := MeshInstance3D.new()
+		crease.mesh = crease_mesh
+		crease.material_override = bag_fold
+		crease.position = Vector3(0, 0.37, -0.28)
+		crease.rotation.z = 0.45
+		root.add_child(crease)
+
+	var sign_pos := Vector3(-5.2, 0, 6.2)
+	var sign_panel := _wall_box(Vector3(0.62, 0.86, 0.035), sign_pos + Vector3(0, 0.46, 0), hazard, false)
+	sign_panel.rotation.x = -0.08
+	_wall_box(Vector3(0.62, 0.055, 0.04), sign_pos + Vector3(0, 0.72, -0.025), dark, false)
+	_wall_box(Vector3(0.62, 0.055, 0.04), sign_pos + Vector3(0, 0.20, -0.025), dark, false)
+	for side in [-1.0, 1.0]:
+		_wall_box(Vector3(0.06, 0.42, 0.05), sign_pos + Vector3(side * 0.24, 0.21, 0.10), dark, false)
+	var sign_label := Label3D.new()
+	sign_label.text = "CAUTION\nWET FLOOR"
+	sign_label.font = ProductShapes.sign_font()
+	sign_label.font_size = 36
+	sign_label.pixel_size = 0.0032
+	sign_label.modulate = Color(0.08, 0.08, 0.07)
+	sign_label.outline_size = 0
+	sign_label.position = sign_pos + Vector3(0, 0.47, 0.026)
+	sign_label.double_sided = true
+	add_child(sign_label)
 
 
 func _build_entry_mat() -> void:
