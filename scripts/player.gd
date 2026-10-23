@@ -43,6 +43,11 @@ var _hand_right := Vector3.RIGHT
 var _grab_anim: float = 0.0
 var _bag_kick: float = 0.0
 var _view_t: float = 0.0
+var _prev_yaw: float = 0.0
+var _prev_pitch: float = 0.0
+var _tool_lag_yaw: float = 0.0
+var _tool_lag_pitch: float = 0.0
+var _bag_base_pos := Vector3(0.62, -0.35, -0.67)
 var _body: Node3D
 var _body_mat: ShaderMaterial
 var _walk_amt: float = 0.0
@@ -171,7 +176,7 @@ func _build_viewmodel() -> void:
 	_hand_bar = grip_bar
 	_hand_right = grip_right
 
-	var glove_scale_l := 1.12
+	var glove_scale_l := 1.24
 	var wrist_l := grip + grip_bar * 0.06 - (grip_fwd * 0.225 + grip_right * 0.085) * glove_scale_l
 	_hand_base = Basis(grip_bar, -grip_fwd, grip_right)
 	_hand_wrist = wrist_l
@@ -185,11 +190,12 @@ func _build_viewmodel() -> void:
 	glove_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	glove_l.scale = Vector3.ONE * glove_scale_l
 	_hand_l.add_child(glove_l)
-	_cylinder_between(_picker, wrist_l, wrist_l + _hand_base.y * 0.162, 0.072, 0.082, shirt_mat, 14)
-	_cylinder_between(_picker, wrist_l - _hand_base.y * 0.004, wrist_l + _hand_base.y * 0.030, 0.075, 0.078, cuff_mat, 14)
+	_cylinder_between(_picker, wrist_l, wrist_l + _hand_base.y * 0.162, 0.066, 0.078, shirt_mat, 14)
+	_cylinder_between(_picker, wrist_l - _hand_base.y * 0.055, wrist_l + _hand_base.y * 0.088, 0.077, 0.076, cuff_mat, 14)
 
 	_bag_pivot = Node3D.new()
 	_bag_pivot.position = Vector3(0.62, -0.35, -0.67)
+	_bag_base_pos = _bag_pivot.position
 	_viewmodel.add_child(_bag_pivot)
 	_arm_r = Node3D.new()
 	_bag_pivot.add_child(_arm_r)
@@ -200,7 +206,7 @@ func _build_viewmodel() -> void:
 	var hand_x := (Vector3.UP - arm_dir_r * arm_dir_r.dot(Vector3.UP)).normalized()
 	var hand_z := hand_x.cross(arm_dir_r).normalized()
 	var hand_r_basis := Basis(hand_x, arm_dir_r, hand_z)
-	var glove_scale_r := 0.98
+	var glove_scale_r := 1.08
 	var wrist_r := knot_w - hand_r_basis * (Vector3(-0.02, -0.225, 0.085) * glove_scale_r)
 	var glove_r := MeshInstance3D.new()
 	glove_r.mesh = load("res://assets/models/glove_left.obj")
@@ -208,8 +214,8 @@ func _build_viewmodel() -> void:
 	glove_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	glove_r.transform = Transform3D(hand_r_basis * glove_scale_r, wrist_r - pk)
 	_arm_r.add_child(glove_r)
-	_cylinder_between(_arm_r, wrist_r - pk, wrist_r - pk + hand_r_basis.y * 0.203, 0.066, 0.077, shirt_mat, 14)
-	_cylinder_between(_arm_r, wrist_r - pk - hand_r_basis.y * 0.004, wrist_r - pk + hand_r_basis.y * 0.030, 0.069, 0.072, cuff_mat, 14)
+	_cylinder_between(_arm_r, wrist_r - pk, wrist_r - pk + hand_r_basis.y * 0.203, 0.062, 0.073, shirt_mat, 14)
+	_cylinder_between(_arm_r, wrist_r - pk - hand_r_basis.y * 0.052, wrist_r - pk + hand_r_basis.y * 0.085, 0.072, 0.072, cuff_mat, 14)
 
 	_bag_body = Node3D.new()
 	_bag_pivot.add_child(_bag_body)
@@ -650,37 +656,50 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	var speed := maxf(GameState.player_speed(), 0.01)
 	var walk := clampf(Vector2(velocity.x, velocity.z).length() / speed, 0.0, 1.0)
 	var breath := sin(_view_t * 1.8) * 0.0025
-	var step := absf(sin(_bob_time)) * 0.009 * walk
+	var step_drop := absf(sin(_bob_time)) * 0.015 * walk
+	var step_lat := sin(_bob_time) * 0.011 * walk
 	var sway := minf(delta * 7.0, 1.0)
 	var look_up := clampf((_pitch - 0.45) / 0.95, 0.0, 1.0)
 	look_up = look_up * look_up * (3.0 - 2.0 * look_up)
-	var target_pos := Vector3(-move_vec.x * 0.018, breath - step - 0.22 * look_up, 0.05 * look_up)
+	var target_pos := Vector3(-move_vec.x * 0.018 + step_lat, breath - step_drop - 0.22 * look_up, 0.05 * look_up)
 	_viewmodel.position = _viewmodel.position.lerp(target_pos, sway)
-	_viewmodel.rotation.z = lerpf(_viewmodel.rotation.z, -move_vec.x * 0.025, sway)
+	_viewmodel.rotation.z = lerpf(_viewmodel.rotation.z, -move_vec.x * 0.025 + sin(_bob_time) * 0.014 * walk, sway)
 	_viewmodel.rotation.x = lerpf(_viewmodel.rotation.x, -move_vec.y * 0.012 - 0.32 * look_up, sway)
 
+	var dyaw := wrapf(_yaw - _prev_yaw, -PI, PI)
+	var dpitch := _pitch - _prev_pitch
+	_prev_yaw = _yaw
+	_prev_pitch = _pitch
+	_tool_lag_yaw = lerpf(_tool_lag_yaw, clampf(-dyaw * 9.0, -0.13, 0.13), minf(delta * 10.0, 1.0))
+	_tool_lag_pitch = lerpf(_tool_lag_pitch, clampf(-dpitch * 7.0, -0.11, 0.11), minf(delta * 10.0, 1.0))
+	_picker.rotation.y = _tool_lag_yaw
+	_picker.rotation.x = lerpf(_picker.rotation.x, -_grab_anim * 0.03 + _tool_lag_pitch, minf(delta * 10.0, 1.0))
+	_picker.rotation.z = lerpf(_picker.rotation.z, -move_vec.x * 0.012 + sin(_bob_time) * 0.02 * walk, minf(delta * 5.0, 1.0))
+	_picker.position.z = lerpf(_picker.position.z, -_grab_anim * 0.03, minf(delta * 14.0, 1.0))
+	_picker.position.y = lerpf(_picker.position.y, -_grab_anim * 0.014, minf(delta * 14.0, 1.0))
+
 	var fill := clampf(float(stack.size()) / 16.0, 0.0, 1.0)
-	_bag_kick = maxf(_bag_kick - delta * 2.6, 0.0)
+	_bag_kick = maxf(_bag_kick - delta * 3.2, 0.0)
 	var bag_scale := 0.72 * (1.0 + fill * 0.08 + _bag_kick * 0.035)
-	_bag_body.scale = _bag_body.scale.lerp(Vector3(bag_scale, bag_scale, bag_scale), minf(delta * 5.0, 1.0))
+	_bag_body.scale = _bag_body.scale.lerp(Vector3.ONE * bag_scale, minf(delta * 5.0, 1.0))
+	_bag_pivot.position = _bag_base_pos + Vector3(
+		sin(_bob_time) * 0.010 * walk,
+		-absf(sin(_bob_time)) * 0.013 * walk - _bag_kick * 0.02,
+		0.0)
 	_bag_pivot.rotation.z = lerpf(_bag_pivot.rotation.z, -move_vec.x * 0.045 + sin(_view_t * 1.3) * 0.008, minf(delta * 5.0, 1.0))
 	_bag_pivot.rotation.x = lerpf(_bag_pivot.rotation.x, move_vec.y * 0.02 + sin(_view_t * 1.7) * 0.006, minf(delta * 4.0, 1.0))
 
-	_picker.position.z = lerpf(_picker.position.z, -_grab_anim * 0.012, minf(delta * 14.0, 1.0))
-	_picker.position.y = lerpf(_picker.position.y, -_grab_anim * 0.006, minf(delta * 14.0, 1.0))
-	_picker.rotation.z = lerpf(_picker.rotation.z, -move_vec.x * 0.012, minf(delta * 5.0, 1.0))
-	_picker.rotation.x = lerpf(_picker.rotation.x, -_grab_anim * 0.018, minf(delta * 10.0, 1.0))
 	var close := 0.0
 	if _grab_anim > 0.0:
 		close = sin((1.0 - _grab_anim) * PI)
 	if _grab_material != null:
 		_grab_material.set_shader_parameter("close", close)
 	if _hand_l != null:
-		var idle_sway := sin(_view_t * 1.25) * 0.014 + sin(_view_t * 2.3) * 0.005
-		var roll := Basis(Quaternion(_hand_bar, 0.05 * close))
+		var idle_sway := sin(_view_t * 1.25) * 0.014 + sin(_view_t * 2.3) * 0.005 + sin(_bob_time) * 0.022 * walk
+		var roll := Basis(Quaternion(_hand_bar, 0.07 * close))
 		_hand_l.basis = roll * Basis(Quaternion(_hand_right, idle_sway)) * _hand_base
 		_hand_l.position = _hand_wrist + _hand_right * 0.006 * close
-	_grab_anim = maxf(_grab_anim - delta * 3.6, 0.0)
+	_grab_anim = maxf(_grab_anim - delta * 4.5, 0.0)
 
 
 func _update_hint() -> void:
