@@ -171,7 +171,8 @@ func _build_viewmodel() -> void:
 	_hand_bar = grip_bar
 	_hand_right = grip_right
 
-	var wrist_l := grip + grip_bar * 0.06 - (grip_fwd * 0.225 + grip_right * 0.085) * 0.85
+	var glove_scale_l := 1.12
+	var wrist_l := grip + grip_bar * 0.06 - (grip_fwd * 0.225 + grip_right * 0.085) * glove_scale_l
 	_hand_base = Basis(grip_bar, -grip_fwd, grip_right)
 	_hand_wrist = wrist_l
 	_hand_l = Node3D.new()
@@ -182,10 +183,10 @@ func _build_viewmodel() -> void:
 	glove_l.mesh = load("res://assets/models/glove_right.obj")
 	glove_l.material_override = scan_mat
 	glove_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	glove_l.scale = Vector3.ONE * 0.85
+	glove_l.scale = Vector3.ONE * glove_scale_l
 	_hand_l.add_child(glove_l)
-	_cylinder_between(_picker, wrist_l, wrist_l + _hand_base.y * 0.162, 0.061, 0.078, shirt_mat, 14)
-	_cylinder_between(_picker, wrist_l - _hand_base.y * 0.004, wrist_l + _hand_base.y * 0.030, 0.064, 0.067, cuff_mat, 14)
+	_cylinder_between(_picker, wrist_l, wrist_l + _hand_base.y * 0.162, 0.072, 0.082, shirt_mat, 14)
+	_cylinder_between(_picker, wrist_l - _hand_base.y * 0.004, wrist_l + _hand_base.y * 0.030, 0.075, 0.078, cuff_mat, 14)
 
 	_bag_pivot = Node3D.new()
 	_bag_pivot.position = Vector3(0.62, -0.35, -0.67)
@@ -199,7 +200,7 @@ func _build_viewmodel() -> void:
 	var hand_x := (Vector3.UP - arm_dir_r * arm_dir_r.dot(Vector3.UP)).normalized()
 	var hand_z := hand_x.cross(arm_dir_r).normalized()
 	var hand_r_basis := Basis(hand_x, arm_dir_r, hand_z)
-	var glove_scale_r := 0.75
+	var glove_scale_r := 0.98
 	var wrist_r := knot_w - hand_r_basis * (Vector3(-0.02, -0.225, 0.085) * glove_scale_r)
 	var glove_r := MeshInstance3D.new()
 	glove_r.mesh = load("res://assets/models/glove_left.obj")
@@ -207,8 +208,8 @@ func _build_viewmodel() -> void:
 	glove_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	glove_r.transform = Transform3D(hand_r_basis * glove_scale_r, wrist_r - pk)
 	_arm_r.add_child(glove_r)
-	_cylinder_between(_arm_r, wrist_r - pk, wrist_r - pk + hand_r_basis.y * 0.203, 0.055, 0.073, shirt_mat, 14)
-	_cylinder_between(_arm_r, wrist_r - pk - hand_r_basis.y * 0.004, wrist_r - pk + hand_r_basis.y * 0.030, 0.058, 0.061, cuff_mat, 14)
+	_cylinder_between(_arm_r, wrist_r - pk, wrist_r - pk + hand_r_basis.y * 0.203, 0.066, 0.077, shirt_mat, 14)
+	_cylinder_between(_arm_r, wrist_r - pk - hand_r_basis.y * 0.004, wrist_r - pk + hand_r_basis.y * 0.030, 0.069, 0.072, cuff_mat, 14)
 
 	_bag_body = Node3D.new()
 	_bag_pivot.add_child(_bag_body)
