@@ -46,6 +46,11 @@ var _view_t: float = 0.0
 var _body: Node3D
 var _body_mat: ShaderMaterial
 var _walk_amt: float = 0.0
+var _walk_phase: float = 0.0
+var _stride_amt: float = 1.0
+var _body_yaw: float = 0.0
+var _body_lean: float = 0.0
+var _body_roll: float = 0.0
 var _cam_cast: RayCast3D
 
 
@@ -447,14 +452,16 @@ func _physics_process(delta: float) -> void:
 	if dir.length() > 0.01:
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
-		_bob_time += delta * speed * 2.2
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, speed * 8.0 * delta)
 		velocity.z = move_toward(velocity.z, 0.0, speed * 8.0 * delta)
 
 	move_and_slide()
 
-	var bob := sin(_bob_time) * 0.03 if dir.length() > 0.01 else 0.0
+	var horiz := Vector2(velocity.x, velocity.z).length()
+	var walk_factor := clampf(horiz / maxf(speed, 0.01), 0.0, 1.0)
+	_bob_time += delta * horiz * 2.2
+	var bob := sin(_bob_time) * 0.03 * walk_factor
 	if third_person:
 		_update_third_person_camera()
 	else:
@@ -488,17 +495,28 @@ func _update_body(delta: float, move_vec: Vector3) -> void:
 	if _body == null or _body_mat == null:
 		return
 	var speed := maxf(GameState.player_speed(), 0.01)
-	var walk := clampf(Vector2(velocity.x, velocity.z).length() / speed, 0.0, 1.0)
-	_walk_amt = lerpf(_walk_amt, walk, minf(delta * 8.0, 1.0))
+	var horiz := Vector2(velocity.x, velocity.z).length()
+	var walk := clampf(horiz / speed, 0.0, 1.0)
+	_walk_amt = lerpf(_walk_amt, walk, 1.0 - exp(-delta * 7.0))
+	_walk_phase += delta * horiz * 3.3
+	var run := clampf((speed - 3.5) / 3.5, 0.0, 1.0)
+	_stride_amt = lerpf(_stride_amt, 1.0 + 0.25 * run, 1.0 - exp(-delta * 2.5))
 	_body_mat.set_shader_parameter("walk_amount", _walk_amt)
-	_body_mat.set_shader_parameter("walk_phase", _bob_time)
-	if not _body.visible:
-		return
-	var bob := -absf(sin(_bob_time)) * 0.065 * _walk_amt
+	_body_mat.set_shader_parameter("walk_phase", _walk_phase)
+	_body_mat.set_shader_parameter("stride_amount", _stride_amt)
+
+	var bob := -0.09 * sin(_walk_phase) * sin(_walk_phase) * _walk_amt
 	var breath := sin(_view_t * 1.6) * 0.003 * (1.0 - _walk_amt)
 	_body.position.y = bob + breath
-	_body.rotation.x = 0.045 * _walk_amt
-	_body.rotation.z = sin(_bob_time) * 0.022 * _walk_amt + move_vec.x * 0.04 * _walk_amt
+
+	_body_yaw = lerp_angle(_body_yaw, _yaw, 1.0 - exp(-delta * 8.0))
+	_body.rotation.y = PI + wrapf(_body_yaw - _yaw, -PI, PI)
+	var target_lean := (0.05 + 0.08 * run) * _walk_amt
+	var target_roll := cos(_walk_phase) * 0.022 * _walk_amt + move_vec.x * 0.035 * _walk_amt
+	_body_lean = lerpf(_body_lean, target_lean, 1.0 - exp(-delta * 6.0))
+	_body_roll = lerpf(_body_roll, target_roll, 1.0 - exp(-delta * 6.0))
+	_body.rotation.x = _body_lean
+	_body.rotation.z = _body_roll
 
 
 func try_interact() -> void:
