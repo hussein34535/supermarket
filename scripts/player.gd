@@ -31,6 +31,12 @@ var _tool: Node3D
 var _grab_material: ShaderMaterial
 var _bag_pivot: Node3D
 var _bag_body: Node3D
+var _hand_l: Node3D
+var _arm_r: Node3D
+var _index_pivot: Node3D
+var _finger_pivots: Array[Node3D] = []
+var _hand_bar := Vector3.UP
+var _hand_right := Vector3.RIGHT
 var _grab_anim: float = 0.0
 var _bag_kick: float = 0.0
 var _view_t: float = 0.0
@@ -113,7 +119,6 @@ func _build_viewmodel() -> void:
 	_picker = Node3D.new()
 	_viewmodel.add_child(_picker)
 	var grip := Vector3(-0.36, -0.38, -0.62)
-	var axis := Vector3(0.267, 0.345, -0.888).normalized()
 	var tool_axis := Vector3(0.244, 0.157, -0.957).normalized()
 	var tool_lift := (Vector3.UP - tool_axis * tool_axis.dot(Vector3.UP)).normalized()
 	var tool_side := tool_axis.cross(tool_lift).normalized()
@@ -141,9 +146,15 @@ func _build_viewmodel() -> void:
 			mesh_inst.material_override = _grab_material
 		mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
-	var wrist_l := Vector3(-0.43, -0.39, -0.56)
-	var elbow_l := Vector3(-0.55, -0.65, -0.34)
-	var upper_l := Vector3(-0.82, -0.93, -0.08)
+	var grip_bar := (tool_axis * 0.592 + tool_lift * 0.806).normalized()
+	var grip_fwd := (tool_axis - grip_bar * grip_bar.dot(tool_axis)).normalized()
+	var grip_right := grip_fwd.cross(grip_bar).normalized()
+	_hand_bar = grip_bar
+	_hand_right = grip_right
+
+	var wrist_l := grip - grip_bar * 0.058 - grip_fwd * 0.02
+	var elbow_l := Vector3(-0.55, -0.68, -0.32)
+	var upper_l := Vector3(-0.82, -0.96, -0.06)
 	var axis_l := (wrist_l - elbow_l).normalized()
 	_cylinder_between(_viewmodel, upper_l, elbow_l, 0.125, 0.105, sleeve_mat, 12)
 	_cylinder_between(_viewmodel, elbow_l, wrist_l, 0.105, 0.084, sleeve_mat, 12)
@@ -156,82 +167,102 @@ func _build_viewmodel() -> void:
 	for i in 3:
 		var ring_pos := wrist_l - axis_l * (0.008 + i * 0.023)
 		_cylinder_between(_viewmodel, ring_pos - axis_l * 0.006, ring_pos + axis_l * 0.006, 0.096, 0.096, sleeve_dark, 12)
-	var across_l := axis.cross(Vector3.UP).normalized()
-	var lift_l := (Vector3.UP - axis * axis.dot(Vector3.UP)).normalized()
-	var palm_pos := grip - across_l * 0.046 - lift_l * 0.018
-	var palm_l := _add_vm_sphere(_viewmodel, 0.045, palm_pos, leather, 14, 9)
-	palm_l.scale = Vector3(0.86, 0.78, 0.98)
-	var back_l := _add_vm_sphere(_viewmodel, 0.040, palm_pos + across_l * 0.008 - lift_l * 0.002 + Vector3(0, 0, 0.024), leather, 12, 8)
-	back_l.scale = Vector3(0.92, 0.86, 0.6)
+
+	_hand_l = Node3D.new()
+	_hand_l.position = grip
+	_picker.add_child(_hand_l)
+
+	var palm_basis := Basis(grip_fwd, grip_bar, grip_fwd.cross(grip_bar))
+	var palm_local := grip_bar * 0.018 - grip_right * 0.052 - grip_fwd * 0.012
+	var palm_l := _add_vm_sphere(_hand_l, 0.042, palm_local, leather, 14, 9)
+	palm_l.basis = palm_basis.scaled(Vector3(0.95, 1.05, 0.78))
+	var back_l := _add_vm_sphere(_hand_l, 0.036, palm_local - grip_right * 0.016 + grip_fwd * 0.010, leather, 12, 8)
+	back_l.basis = palm_basis.scaled(Vector3(0.7, 0.95, 0.62))
+	_cylinder_between(_viewmodel, wrist_l, grip + palm_local, 0.034, 0.030, leather, 12)
 	var cuff_band := _cylinder_between(_viewmodel, wrist_l - axis_l * 0.005, wrist_l + axis_l * 0.035, 0.071, 0.066, leather_dark, 12)
 	cuff_band.rotation.y = 0.0
-	_cylinder_between(_viewmodel, wrist_l, palm_pos + Vector3(0, 0, 0.012), 0.034, 0.030, leather, 12)
-	for i in 4:
-		var c := grip + axis * ((1.5 - float(i)) * 0.031) - lift_l * 0.004
-		var p0 := c - across_l * 0.022 + lift_l * 0.044
-		var p1 := c + across_l * 0.040 + lift_l * 0.012
-		var p2 := c + across_l * 0.042 - lift_l * 0.028
-		var p3 := c + across_l * 0.012 - lift_l * 0.052
-		_capsule_between(_viewmodel, p0, p1, 0.0165, leather, 8)
-		_capsule_between(_viewmodel, p1, p2, 0.0155, leather, 8)
-		_capsule_between(_viewmodel, p2, p3, 0.014, leather, 8)
-		var knuckle := _add_vm_sphere(_viewmodel, 0.018, p0, leather_light, 8, 6)
-		knuckle.scale = Vector3(1.0, 0.9, 0.82)
-		if i < 3:
-			_cylinder_between(_viewmodel, p0 + lift_l * 0.002 + Vector3(0, 0, 0.010), p0 - axis * 0.031 + lift_l * 0.002 + Vector3(0, 0, 0.010), 0.0032, 0.0032, leather_dark, 6)
-	var thumb0 := palm_pos - across_l * 0.026 - lift_l * 0.036 + Vector3(0, 0.006, 0.055)
-	var thumb1 := palm_pos - across_l * 0.008 + lift_l * 0.016 + Vector3(0, 0.004, 0.060)
-	var thumb2 := grip - across_l * 0.028 + lift_l * 0.032 + Vector3(0, 0.012, 0.050)
-	_capsule_between(_viewmodel, thumb0, thumb1, 0.020, leather, 8)
-	_capsule_between(_viewmodel, thumb1, thumb2, 0.016, leather, 8)
 
-	var wrist_r := Vector3(0.585, -0.315, -0.56)
-	var elbow_r := Vector3(0.75, -0.60, -0.33)
-	var upper_r := Vector3(1.04, -0.92, -0.08)
-	var axis_r := (wrist_r - elbow_r).normalized()
-	_cylinder_between(_viewmodel, upper_r, elbow_r, 0.127, 0.107, sleeve_mat, 12)
-	_cylinder_between(_viewmodel, elbow_r, wrist_r, 0.107, 0.085, sleeve_mat, 12)
-	_cylinder_between(_viewmodel, elbow_r - axis_r * 0.008, elbow_r - axis_r * 0.038, 0.11, 0.114, sleeve_dark, 12)
-	var fold_r := elbow_r.lerp(wrist_r, 0.4)
-	_cylinder_between(_viewmodel, fold_r - axis_r * 0.012, fold_r + axis_r * 0.012, 0.10, 0.10, sleeve_dark, 12)
-	fold_r = elbow_r.lerp(wrist_r, 0.68)
-	_cylinder_between(_viewmodel, fold_r - axis_r * 0.012, fold_r + axis_r * 0.012, 0.092, 0.092, sleeve_dark, 12)
-	_cylinder_between(_viewmodel, wrist_r - axis_r * 0.075, wrist_r + axis_r * 0.012, 0.096, 0.089, cuff_mat, 12)
-	for i in 3:
-		var ring_pos := wrist_r - axis_r * (0.008 + i * 0.023)
-		_cylinder_between(_viewmodel, ring_pos - axis_r * 0.006, ring_pos + axis_r * 0.006, 0.098, 0.098, sleeve_dark, 12)
+	var finger_dy := [0.054, 0.022, -0.010]
+	for fi in 3:
+		var dy: float = finger_dy[fi]
+		var theta0 := -0.55 + fi * 0.08
+		var theta1 := 1.52 - fi * 0.10
+		var pts: Array[Vector3] = []
+		for si in 4:
+			var th := lerpf(theta0, theta1, si / 3.0)
+			var r := lerpf(0.047, 0.040, si / 3.0)
+			pts.append(grip_bar * (dy + si * 0.004) - grip_right * (cos(th) * r) + grip_fwd * (sin(th) * r))
+		var radii: Array[float] = [0.0165, 0.0155, 0.014]
+		var pivot := _add_wrapped_finger(_hand_l, pts, radii, leather, leather_light)
+		_finger_pivots.append(pivot)
+
+	var trigger_t := grip_bar * 0.125 + grip_fwd * 0.069
+	var index_k := grip_bar * 0.078 - grip_right * 0.030 + grip_fwd * 0.002
+	var index_pts: Array[Vector3] = [
+		index_k,
+		index_k.lerp(trigger_t, 0.45) + grip_fwd * 0.006,
+		index_k.lerp(trigger_t, 0.82),
+		trigger_t - grip_fwd * 0.006 - grip_bar * 0.006,
+	]
+	var index_radii: Array[float] = [0.0165, 0.015, 0.0135]
+	_index_pivot = _add_wrapped_finger(_hand_l, index_pts, index_radii, leather, leather_light)
+
+	var thumb_base := palm_local + grip_fwd * 0.02 - grip_bar * 0.02 + grip_right * 0.010
+	var thumb1 := grip_bar * 0.040 - grip_right * 0.028 + grip_fwd * 0.048
+	var thumb2 := grip_bar * 0.078 + grip_right * 0.008 + grip_fwd * 0.054
+	_capsule_between(_hand_l, thumb_base, thumb1, 0.019, leather, 8)
+	_capsule_between(_hand_l, thumb1, thumb2, 0.0155, leather, 8)
+	_add_vm_sphere(_hand_l, 0.016, thumb2, leather_light, 8, 5)
 
 	_bag_pivot = Node3D.new()
 	_bag_pivot.position = Vector3(0.545, -0.255, -0.625)
 	_viewmodel.add_child(_bag_pivot)
-	var knot_pos := _bag_pivot.position
-	var hand_r := Vector3(0.468, -0.185, -0.596)
-	var palm_r := _add_vm_sphere(_viewmodel, 0.044, hand_r, leather, 14, 9)
+	_arm_r = Node3D.new()
+	_bag_pivot.add_child(_arm_r)
+	var pk := _bag_pivot.position
+	var wrist_r := Vector3(0.585, -0.315, -0.56) - pk
+	var elbow_r := Vector3(0.75, -0.60, -0.33) - pk
+	var upper_r := Vector3(1.04, -0.92, -0.08) - pk
+	var axis_r := (wrist_r - elbow_r).normalized()
+	_cylinder_between(_arm_r, upper_r, elbow_r, 0.127, 0.107, sleeve_mat, 12)
+	_cylinder_between(_arm_r, elbow_r, wrist_r, 0.107, 0.085, sleeve_mat, 12)
+	_cylinder_between(_arm_r, elbow_r - axis_r * 0.008, elbow_r - axis_r * 0.038, 0.11, 0.114, sleeve_dark, 12)
+	var fold_r := elbow_r.lerp(wrist_r, 0.4)
+	_cylinder_between(_arm_r, fold_r - axis_r * 0.012, fold_r + axis_r * 0.012, 0.10, 0.10, sleeve_dark, 12)
+	fold_r = elbow_r.lerp(wrist_r, 0.68)
+	_cylinder_between(_arm_r, fold_r - axis_r * 0.012, fold_r + axis_r * 0.012, 0.092, 0.092, sleeve_dark, 12)
+	_cylinder_between(_arm_r, wrist_r - axis_r * 0.075, wrist_r + axis_r * 0.012, 0.096, 0.089, cuff_mat, 12)
+	for i in 3:
+		var ring_pos := wrist_r - axis_r * (0.008 + i * 0.023)
+		_cylinder_between(_arm_r, ring_pos - axis_r * 0.006, ring_pos + axis_r * 0.006, 0.098, 0.098, sleeve_dark, 12)
+
+	var hand_r := Vector3(0.468, -0.185, -0.596) - pk
+	var palm_r := _add_vm_sphere(_arm_r, 0.044, hand_r, leather, 14, 9)
 	palm_r.scale = Vector3(0.82, 1.05, 0.82)
-	var back_r := _add_vm_sphere(_viewmodel, 0.038, hand_r + Vector3(0.008, -0.004, 0.022), leather, 12, 8)
+	var back_r := _add_vm_sphere(_arm_r, 0.038, hand_r + Vector3(0.008, -0.004, 0.022), leather, 12, 8)
 	back_r.scale = Vector3(0.88, 0.9, 0.65)
-	var cuff_r := _cylinder_between(_viewmodel, wrist_r - axis_r * 0.005, wrist_r + axis_r * 0.04, 0.062, 0.056, leather_dark, 12)
+	var cuff_r := _cylinder_between(_arm_r, wrist_r - axis_r * 0.005, wrist_r + axis_r * 0.04, 0.062, 0.056, leather_dark, 12)
 	cuff_r.rotation.y = 0.0
-	_cylinder_between(_viewmodel, wrist_r, hand_r + Vector3(0.020, -0.032, 0.016), 0.032, 0.029, leather, 12)
+	_cylinder_between(_arm_r, wrist_r, hand_r + Vector3(0.020, -0.032, 0.016), 0.032, 0.029, leather, 12)
 	for i in 4:
-		var c := Vector3(knot_pos.x, knot_pos.y + 0.052 - float(i) * 0.029, knot_pos.z + 0.012)
+		var c := Vector3(0.0, 0.052 - float(i) * 0.029, 0.012)
 		var p0 := c + Vector3(-0.040, 0.008, 0.014)
 		var p1 := c + Vector3(-0.006, 0.004, 0.050)
 		var p2 := c + Vector3(0.036, -0.002, 0.043)
 		var p3 := c + Vector3(0.056, -0.010, 0.006)
-		_capsule_between(_viewmodel, p0, p1, 0.0165, leather, 8)
-		_capsule_between(_viewmodel, p1, p2, 0.0155, leather, 8)
-		_capsule_between(_viewmodel, p2, p3, 0.014, leather, 8)
-		var knuckle := _add_vm_sphere(_viewmodel, 0.018, p0, leather_light, 8, 6)
+		_capsule_between(_arm_r, p0, p1, 0.0165, leather, 8)
+		_capsule_between(_arm_r, p1, p2, 0.0155, leather, 8)
+		_capsule_between(_arm_r, p2, p3, 0.014, leather, 8)
+		var knuckle := _add_vm_sphere(_arm_r, 0.018, p0, leather_light, 8, 6)
 		knuckle.scale = Vector3(1.0, 0.92, 0.84)
 		if i < 3:
-			var gy := knot_pos.y + 0.0375 - float(i) * 0.029
-			_cylinder_between(_viewmodel, Vector3(0.500, gy, -0.562), Vector3(0.575, gy - 0.002, -0.556), 0.0042, 0.0034, leather_dark, 6)
+			var gy := 0.0375 - float(i) * 0.029
+			_cylinder_between(_arm_r, Vector3(-0.045, gy, 0.063), Vector3(0.030, gy - 0.002, 0.069), 0.0042, 0.0034, leather_dark, 6)
 	var thumb_r0 := hand_r + Vector3(-0.012, -0.042, 0.038)
-	var thumb_r1 := Vector3(knot_pos.x - 0.044, knot_pos.y + 0.004, knot_pos.z + 0.050)
-	var thumb_r2 := Vector3(knot_pos.x + 0.026, knot_pos.y + 0.020, knot_pos.z + 0.058)
-	_capsule_between(_viewmodel, thumb_r0, thumb_r1, 0.019, leather, 8)
-	_capsule_between(_viewmodel, thumb_r1, thumb_r2, 0.016, leather, 8)
+	var thumb_r1 := Vector3(-0.044, 0.004, 0.050)
+	var thumb_r2 := Vector3(0.026, 0.020, 0.058)
+	_capsule_between(_arm_r, thumb_r0, thumb_r1, 0.019, leather, 8)
+	_capsule_between(_arm_r, thumb_r1, thumb_r2, 0.016, leather, 8)
 
 	_bag_body = Node3D.new()
 	_bag_pivot.add_child(_bag_body)
@@ -389,6 +420,21 @@ func _capsule_between(parent: Node3D, a: Vector3, b: Vector3, radius: float, mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 	return mi
+
+
+func _add_wrapped_finger(parent: Node3D, points: Array[Vector3], radii: Array[float], mat: Material, mat_light: Material) -> Node3D:
+	var pivot := Node3D.new()
+	pivot.position = points[0]
+	parent.add_child(pivot)
+	var knuckle := _add_vm_sphere(pivot, radii[0] * 1.15, Vector3.ZERO, mat_light, 8, 5)
+	knuckle.scale = Vector3(1.0, 0.9, 0.82)
+	var prev := Vector3.ZERO
+	for i in range(1, points.size()):
+		var p: Vector3 = points[i] - points[0]
+		_capsule_between(pivot, prev, p, radii[i - 1], mat, 8)
+		prev = p
+	_add_vm_sphere(pivot, radii[radii.size() - 1] * 0.9, prev, mat_light, 8, 5)
+	return pivot
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -583,6 +629,12 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 		close = sin((1.0 - _grab_anim) * PI)
 	if _grab_material != null:
 		_grab_material.set_shader_parameter("close", close)
+	if _hand_l != null:
+		_hand_l.quaternion = Quaternion(_hand_right, sin(_view_t * 1.25) * 0.014 + sin(_view_t * 2.3) * 0.005)
+	for pivot in _finger_pivots:
+		pivot.quaternion = Quaternion(_hand_bar, -0.14 * close)
+	if _index_pivot != null:
+		_index_pivot.quaternion = Quaternion(_hand_right, 0.30 * close)
 	_grab_anim = maxf(_grab_anim - delta * 3.6, 0.0)
 
 
