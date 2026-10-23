@@ -164,7 +164,7 @@ func _build_hud() -> void:
 	hbox.add_child(spacer)
 
 	var hints := Label.new()
-	hints.text = "[U] Shop   [P] Pause   [Tab] Cursor   [Q] Drop"
+	hints.text = "[U] Shop   [P] Pause   [V] View   [Tab] Cursor   [Q] Drop"
 	hints.add_theme_font_size_override("font_size", 13)
 	hints.modulate = Color(1, 1, 1, 0.5)
 	hints.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -278,7 +278,7 @@ func _build_start_banner() -> void:
 	v.add_child(sub)
 
 	var sub2 := Label.new()
-	sub2.text = "WASD move   •   Mouse look   •   E pick / place   •   Meet your customers"
+	sub2.text = "WASD move   •   Mouse look   •   E pick / place   •   V view   •   Meet your customers"
 	sub2.add_theme_font_size_override("font_size", 13)
 	sub2.modulate = Color(1, 1, 1, 0.55)
 	sub2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -574,6 +574,21 @@ func _build_mobile() -> void:
 	pause_btn.pressed.connect(toggle_pause)
 	mobile_root.add_child(pause_btn)
 
+	var view_btn := Button.new()
+	view_btn.text = "View"
+	view_btn.add_theme_font_size_override("font_size", 13)
+	_button_styles(view_btn, Color(0.75, 0.8, 1.0))
+	view_btn.anchor_left = 1.0
+	view_btn.anchor_top = 0.0
+	view_btn.anchor_right = 1.0
+	view_btn.anchor_bottom = 0.0
+	view_btn.offset_left = -306
+	view_btn.offset_top = 70
+	view_btn.offset_right = -216
+	view_btn.offset_bottom = 120
+	view_btn.pressed.connect(func() -> void: player.toggle_view())
+	mobile_root.add_child(view_btn)
+
 	var pu_row := HBoxContainer.new()
 	pu_row.anchor_left = 1.0
 	pu_row.anchor_top = 1.0
@@ -629,7 +644,6 @@ func _input(event: InputEvent) -> void:
 			player._yaw -= delta.x * 0.005
 			player._pitch = clampf(player._pitch - delta.y * 0.005, deg_to_rad(-85), deg_to_rad(85))
 			player.rotation.y = player._yaw
-			player.camera.rotation.x = player._pitch
 
 
 func _update_joy(pos: Vector2) -> void:

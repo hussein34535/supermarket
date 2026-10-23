@@ -7,11 +7,14 @@ signal powerup_used(index: int)
 
 const MOUSE_SENS := 0.0022
 const GRAVITY := 18.0
+const TP_CAM_DIST := 2.7
+const BODY_SCALE := 1.5
 
 var main: Node3D
 var camera: Camera3D
 var ray: RayCast3D
 var hand_light: OmniLight3D
+var third_person: bool = false
 
 var stack: Array[int] = []
 var cursor_locked: bool = true
@@ -40,6 +43,10 @@ var _hand_right := Vector3.RIGHT
 var _grab_anim: float = 0.0
 var _bag_kick: float = 0.0
 var _view_t: float = 0.0
+var _body: Node3D
+var _body_mat: ShaderMaterial
+var _walk_amt: float = 0.0
+var _cam_cast: RayCast3D
 
 
 func _ready() -> void:
@@ -69,6 +76,12 @@ func _ready() -> void:
 	camera.add_child(ray)
 
 	_build_viewmodel()
+	_build_body()
+
+	_cam_cast = RayCast3D.new()
+	_cam_cast.collision_mask = 1
+	_cam_cast.enabled = true
+	add_child(_cam_cast)
 
 	hand_light = OmniLight3D.new()
 	hand_light.omni_range = 5.0
@@ -151,7 +164,7 @@ func _build_viewmodel() -> void:
 	_hand_bar = grip_bar
 	_hand_right = grip_right
 
-	var wrist_l := grip + grip_bar * 0.06 - grip_fwd * 0.225 - grip_right * 0.085
+	var wrist_l := grip + grip_bar * 0.06 - (grip_fwd * 0.225 + grip_right * 0.085) * 0.85
 	_hand_base = Basis(grip_bar, -grip_fwd, grip_right)
 	_hand_wrist = wrist_l
 	_hand_l = Node3D.new()
@@ -162,8 +175,9 @@ func _build_viewmodel() -> void:
 	glove_l.mesh = load("res://assets/models/glove_right.obj")
 	glove_l.material_override = scan_mat
 	glove_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	glove_l.scale = Vector3.ONE * 0.85
 	_hand_l.add_child(glove_l)
-	_cylinder_between(_picker, wrist_l, wrist_l + _hand_base.y * 0.19, 0.072, 0.092, shirt_mat, 14)
+	_cylinder_between(_picker, wrist_l, wrist_l + _hand_base.y * 0.162, 0.061, 0.078, shirt_mat, 14)
 
 	_bag_pivot = Node3D.new()
 	_bag_pivot.position = Vector3(0.545, -0.255, -0.625)
@@ -177,7 +191,7 @@ func _build_viewmodel() -> void:
 	var hand_x := (Vector3.UP - arm_dir_r * arm_dir_r.dot(Vector3.UP)).normalized()
 	var hand_z := hand_x.cross(arm_dir_r).normalized()
 	var hand_r_basis := Basis(hand_x, arm_dir_r, hand_z)
-	var glove_scale_r := 0.85
+	var glove_scale_r := 0.75
 	var wrist_r := knot_w - hand_r_basis * (Vector3(-0.02, -0.225, 0.085) * glove_scale_r)
 	var glove_r := MeshInstance3D.new()
 	glove_r.mesh = load("res://assets/models/glove_left.obj")
@@ -185,7 +199,7 @@ func _build_viewmodel() -> void:
 	glove_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	glove_r.transform = Transform3D(hand_r_basis * glove_scale_r, wrist_r - pk)
 	_arm_r.add_child(glove_r)
-	_cylinder_between(_arm_r, wrist_r - pk, wrist_r - pk + hand_r_basis.y * 0.23, 0.062, 0.082, shirt_mat, 14)
+	_cylinder_between(_arm_r, wrist_r - pk, wrist_r - pk + hand_r_basis.y * 0.203, 0.055, 0.073, shirt_mat, 14)
 
 	_bag_body = Node3D.new()
 	_bag_pivot.add_child(_bag_body)
@@ -262,6 +276,29 @@ func _build_viewmodel() -> void:
 	upper_fold_a.rotation.z = 0.5
 	var upper_fold_b := _add_vm_box(_bag_body, Vector3(0.010, 0.082, 0.012), Vector3(0.05, -0.09, 0.072), bag_fold)
 	upper_fold_b.rotation.z = -0.42
+
+
+func _build_body() -> void:
+	_body = Node3D.new()
+	_body.name = "Body"
+	_body.rotation.y = PI
+	_body.scale = Vector3.ONE * BODY_SCALE
+	_body.visible = false
+	add_child(_body)
+	var model: Node3D = (load("res://assets/models/character.glb") as PackedScene).instantiate()
+	_body.add_child(model)
+	var shader: Shader = load("res://assets/shaders/character_walk.gdshader")
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_inst := mi as MeshInstance3D
+		var source_mat := mesh_inst.mesh.surface_get_material(0) as StandardMaterial3D
+		_body_mat = ShaderMaterial.new()
+		_body_mat.shader = shader
+		if source_mat != null:
+			_body_mat.set_shader_parameter("albedo_tex", source_mat.albedo_texture)
+			_body_mat.set_shader_parameter("normal_tex", source_mat.normal_texture)
+			_body_mat.set_shader_parameter("orm_tex", source_mat.metallic_texture)
+			_body_mat.set_shader_parameter("specular_value", source_mat.metallic_specular)
+		mesh_inst.material_override = _body_mat
 
 
 func _add_vm_box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
@@ -353,6 +390,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				try_interact()
 	elif event.is_action_pressed("toggle_cursor"):
 		lock_cursor(not cursor_locked)
+	elif event.is_action_pressed("toggle_view"):
+		toggle_view()
 	elif event.is_action_pressed("interact") and cursor_locked and not get_tree().paused:
 		try_interact()
 	elif event.is_action_pressed("drop") and not get_tree().paused:
@@ -373,6 +412,16 @@ func lock_cursor(locked: bool) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if locked else Input.MOUSE_MODE_VISIBLE
 
 
+func toggle_view() -> void:
+	third_person = not third_person
+	_viewmodel.visible = not third_person
+	_body.visible = third_person
+	if third_person:
+		_flash_hint("Third person view")
+	else:
+		_flash_hint("First person view")
+
+
 func set_mobile_move(v: Vector2) -> void:
 	_mobile_move = v
 
@@ -382,7 +431,10 @@ func _physics_process(delta: float) -> void:
 		return
 
 	GameState.tick_powerups(delta)
-	ray.target_position = Vector3(0, 0, -GameState.interact_distance())
+	var reach := GameState.interact_distance()
+	if third_person:
+		reach += TP_CAM_DIST
+	ray.target_position = Vector3(0, 0, -reach)
 
 	var speed := GameState.player_speed()
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -403,10 +455,50 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	var bob := sin(_bob_time) * 0.03 if dir.length() > 0.01 else 0.0
-	camera.position.y = _base_cam_y + bob
+	if third_person:
+		_update_third_person_camera()
+	else:
+		camera.position = Vector3(0, _base_cam_y + bob, 0)
+		camera.rotation.x = _pitch
 
 	_update_viewmodel(delta, move_vec)
+	_update_body(delta, move_vec)
 	_update_hint()
+
+
+func _update_third_person_camera() -> void:
+	var pitch := clampf(_pitch, -1.0, 0.5) - 0.10
+	var look := Basis(Vector3.RIGHT, pitch) * Vector3(0, 0, -1)
+	var pivot := Vector3(0.42, 1.5, 0)
+	var desired := pivot - look * TP_CAM_DIST
+	_cam_cast.position = pivot
+	_cam_cast.target_position = desired - pivot
+	_cam_cast.force_raycast_update()
+	if _cam_cast.is_colliding():
+		var hit := to_local(_cam_cast.get_collision_point())
+		var back := (hit - pivot).normalized()
+		desired = hit - back * 0.22
+		if desired.distance_to(pivot) < 0.45:
+			desired = pivot + back * 0.45
+	camera.position = desired
+	camera.rotation.x = pitch
+
+
+func _update_body(delta: float, move_vec: Vector3) -> void:
+	if _body == null or _body_mat == null:
+		return
+	var speed := maxf(GameState.player_speed(), 0.01)
+	var walk := clampf(Vector2(velocity.x, velocity.z).length() / speed, 0.0, 1.0)
+	_walk_amt = lerpf(_walk_amt, walk, minf(delta * 8.0, 1.0))
+	_body_mat.set_shader_parameter("walk_amount", _walk_amt)
+	_body_mat.set_shader_parameter("walk_phase", _bob_time)
+	if not _body.visible:
+		return
+	var bob := -absf(sin(_bob_time)) * 0.065 * _walk_amt
+	var breath := sin(_view_t * 1.6) * 0.003 * (1.0 - _walk_amt)
+	_body.position.y = bob + breath
+	_body.rotation.x = 0.045 * _walk_amt
+	_body.rotation.z = sin(_bob_time) * 0.022 * _walk_amt + move_vec.x * 0.04 * _walk_amt
 
 
 func try_interact() -> void:
