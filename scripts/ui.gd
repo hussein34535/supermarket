@@ -642,7 +642,7 @@ func _input(event: InputEvent) -> void:
 			var delta := sd.position - look_last
 			look_last = sd.position
 			player._yaw -= delta.x * 0.005
-			player._pitch = clampf(player._pitch - delta.y * 0.005, deg_to_rad(-85), deg_to_rad(85))
+			player._pitch = clampf(player._pitch - delta.y * 0.005, deg_to_rad(-80), deg_to_rad(80))
 			player.rotation.y = player._yaw
 
 

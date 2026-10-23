@@ -112,14 +112,14 @@ func _build_viewmodel() -> void:
 	_viewmodel.name = "Viewmodel"
 	camera.add_child(_viewmodel)
 
-	var bag_mat: StandardMaterial3D = ProductShapes._mat(Color(0.026, 0.028, 0.032), 0.08, 0.17)
+	var bag_mat: StandardMaterial3D = ProductShapes._mat(Color(0.09, 0.097, 0.092), 0.02, 0.38)
 	bag_mat.clearcoat_enabled = true
-	bag_mat.clearcoat = 0.7
-	bag_mat.clearcoat_roughness = 0.18
-	var bag_fold: StandardMaterial3D = ProductShapes._mat(Color(0.12, 0.125, 0.135), 0.05, 0.34)
+	bag_mat.clearcoat = 0.30
+	bag_mat.clearcoat_roughness = 0.35
+	var bag_fold: StandardMaterial3D = ProductShapes._mat(Color(0.21, 0.217, 0.212), 0.01, 0.48)
 	bag_fold.clearcoat_enabled = true
-	bag_fold.clearcoat = 0.5
-	bag_fold.clearcoat_roughness = 0.25
+	bag_fold.clearcoat = 0.20
+	bag_fold.clearcoat_roughness = 0.38
 	var scan_mat := StandardMaterial3D.new()
 	scan_mat.albedo_texture = load("res://assets/models/character_texture_pbr_20250901.png")
 	scan_mat.normal_enabled = true
@@ -131,7 +131,9 @@ func _build_viewmodel() -> void:
 	scan_mat.metallic = 1.0
 	scan_mat.roughness = 1.0
 	scan_mat.metallic_specular = 1.0
-	var shirt_mat: StandardMaterial3D = ProductShapes._mat(Color(0.31, 0.32, 0.34), 0.0, 0.95)
+	var shirt_mat: StandardMaterial3D = _make_fabric_material()
+	var cuff_mat := shirt_mat.duplicate() as StandardMaterial3D
+	cuff_mat.albedo_color = Color(0.60, 0.60, 0.64)
 
 	_picker = Node3D.new()
 	_viewmodel.add_child(_picker)
@@ -183,14 +185,15 @@ func _build_viewmodel() -> void:
 	glove_l.scale = Vector3.ONE * 0.85
 	_hand_l.add_child(glove_l)
 	_cylinder_between(_picker, wrist_l, wrist_l + _hand_base.y * 0.162, 0.061, 0.078, shirt_mat, 14)
+	_cylinder_between(_picker, wrist_l - _hand_base.y * 0.004, wrist_l + _hand_base.y * 0.030, 0.064, 0.067, cuff_mat, 14)
 
 	_bag_pivot = Node3D.new()
-	_bag_pivot.position = Vector3(0.545, -0.255, -0.625)
+	_bag_pivot.position = Vector3(0.62, -0.35, -0.67)
 	_viewmodel.add_child(_bag_pivot)
 	_arm_r = Node3D.new()
 	_bag_pivot.add_child(_arm_r)
 	var pk := _bag_pivot.position
-	var knot_w := Vector3(0.505, -0.19, -0.625)
+	var knot_w := Vector3(0.58, -0.285, -0.67)
 	var elbow_w := Vector3(0.82, -0.66, -0.28)
 	var arm_dir_r := (elbow_w - knot_w).normalized()
 	var hand_x := (Vector3.UP - arm_dir_r * arm_dir_r.dot(Vector3.UP)).normalized()
@@ -205,6 +208,7 @@ func _build_viewmodel() -> void:
 	glove_r.transform = Transform3D(hand_r_basis * glove_scale_r, wrist_r - pk)
 	_arm_r.add_child(glove_r)
 	_cylinder_between(_arm_r, wrist_r - pk, wrist_r - pk + hand_r_basis.y * 0.203, 0.055, 0.073, shirt_mat, 14)
+	_cylinder_between(_arm_r, wrist_r - pk - hand_r_basis.y * 0.004, wrist_r - pk + hand_r_basis.y * 0.030, 0.058, 0.061, cuff_mat, 14)
 
 	_bag_body = Node3D.new()
 	_bag_pivot.add_child(_bag_body)
@@ -281,6 +285,42 @@ func _build_viewmodel() -> void:
 	upper_fold_a.rotation.z = 0.5
 	var upper_fold_b := _add_vm_box(_bag_body, Vector3(0.010, 0.082, 0.012), Vector3(0.05, -0.09, 0.072), bag_fold)
 	upper_fold_b.rotation.z = -0.42
+
+
+func _make_fabric_material() -> StandardMaterial3D:
+	var size := 128
+	var albedo := Image.create(size, size, false, Image.FORMAT_RGB8)
+	var nrm := Image.create(size, size, false, Image.FORMAT_RGB8)
+	for y in size:
+		for x in size:
+			var fx := float(x) / float(size)
+			var fy := float(y) / float(size)
+			var weave := sin((fx + fy) * TAU * 90.0)
+			var grain := sin((fx * 9.0 + fy * 17.0) * TAU) * 0.6 + sin((fx * 23.0 - fy * 13.0) * TAU) * 0.4
+			var shade := 0.94 + weave * 0.03 + grain * 0.02
+			albedo.set_pixel(x, y, Color(0.335 * shade, 0.352 * shade, 0.372 * shade))
+			var hl := _fabric_height(x - 1, y, size)
+			var hr := _fabric_height(x + 1, y, size)
+			var hu := _fabric_height(x, y - 1, size)
+			var hd := _fabric_height(x, y + 1, size)
+			var n := Vector3((hl - hr) * 2.0, (hu - hd) * 2.0, 1.0).normalized()
+			nrm.set_pixel(x, y, Color(n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5))
+	albedo.generate_mipmaps()
+	nrm.generate_mipmaps()
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = ImageTexture.create_from_image(albedo)
+	mat.normal_enabled = true
+	mat.normal_texture = ImageTexture.create_from_image(nrm)
+	mat.normal_scale = 0.45
+	mat.roughness = 0.94
+	mat.uv1_scale = Vector3(3.0, 1.6, 1.0)
+	return mat
+
+
+func _fabric_height(x: int, y: int, size: int) -> float:
+	var fx := float(posmod(x, size)) / float(size)
+	var fy := float(posmod(y, size)) / float(size)
+	return sin((fx + fy) * TAU * 90.0) * 0.32 + sin((fx - fy) * TAU * 150.0) * 0.08
 
 
 func _build_body() -> void:
@@ -378,13 +418,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			if cursor_locked:
 				_yaw -= event.relative.x * MOUSE_SENS
 				_pitch -= event.relative.y * MOUSE_SENS
-				_pitch = clampf(_pitch, deg_to_rad(-85.0), deg_to_rad(85.0))
+				_pitch = clampf(_pitch, deg_to_rad(-80.0), deg_to_rad(80.0))
 				rotation.y = _yaw
 				camera.rotation.x = _pitch
 			elif look_dragging:
 				_yaw -= event.relative.x * MOUSE_SENS * 1.3
 				_pitch -= event.relative.y * MOUSE_SENS * 1.3
-				_pitch = clampf(_pitch, deg_to_rad(-85.0), deg_to_rad(85.0))
+				_pitch = clampf(_pitch, deg_to_rad(-80.0), deg_to_rad(80.0))
 				rotation.y = _yaw
 				camera.rotation.x = _pitch
 	elif event is InputEventMouseButton:
@@ -611,14 +651,16 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	var breath := sin(_view_t * 1.8) * 0.0025
 	var step := absf(sin(_bob_time)) * 0.009 * walk
 	var sway := minf(delta * 7.0, 1.0)
-	var target_pos := Vector3(-move_vec.x * 0.018, breath - step, 0.0)
+	var look_up := clampf((_pitch - 0.45) / 0.95, 0.0, 1.0)
+	look_up = look_up * look_up * (3.0 - 2.0 * look_up)
+	var target_pos := Vector3(-move_vec.x * 0.018, breath - step - 0.22 * look_up, 0.05 * look_up)
 	_viewmodel.position = _viewmodel.position.lerp(target_pos, sway)
 	_viewmodel.rotation.z = lerpf(_viewmodel.rotation.z, -move_vec.x * 0.025, sway)
-	_viewmodel.rotation.x = lerpf(_viewmodel.rotation.x, -move_vec.y * 0.012, sway)
+	_viewmodel.rotation.x = lerpf(_viewmodel.rotation.x, -move_vec.y * 0.012 - 0.32 * look_up, sway)
 
 	var fill := clampf(float(stack.size()) / 16.0, 0.0, 1.0)
 	_bag_kick = maxf(_bag_kick - delta * 2.6, 0.0)
-	var bag_scale := 1.0 + fill * 0.08 + _bag_kick * 0.035
+	var bag_scale := 0.72 * (1.0 + fill * 0.08 + _bag_kick * 0.035)
 	_bag_body.scale = _bag_body.scale.lerp(Vector3(bag_scale, bag_scale, bag_scale), minf(delta * 5.0, 1.0))
 	_bag_pivot.rotation.z = lerpf(_bag_pivot.rotation.z, -move_vec.x * 0.045 + sin(_view_t * 1.3) * 0.008, minf(delta * 5.0, 1.0))
 	_bag_pivot.rotation.x = lerpf(_bag_pivot.rotation.x, move_vec.y * 0.02 + sin(_view_t * 1.7) * 0.006, minf(delta * 4.0, 1.0))
