@@ -11,6 +11,10 @@ const TP_CAM_DIST := 2.7
 const BODY_SCALE := 1.5
 const RIG_HAND_SCALE_MUL := 0.71
 const RIG_HAND_OFFSET := Vector3.ZERO
+const ARMS_SCALE := 0.8
+const ARMS_OFFSET := Vector3.ZERO
+const ARMS_CURL := 0.9
+const ARMS_FLIP := true
 
 var main: Node3D
 var camera: Camera3D
@@ -50,13 +54,10 @@ var _prev_pitch: float = 0.0
 var _tool_lag_yaw: float = 0.0
 var _tool_lag_pitch: float = 0.0
 var _bag_base_pos := Vector3(0.62, -0.35, -0.67)
-var _rig_hand: Node3D
-var _rig_skel: Skeleton3D
-var _rig_ap: AnimationPlayer
-var _rig_bone: int = -1
-var _rig_anchor := Transform3D.IDENTITY
-var _rig_squeeze: bool = false
-var _hand_bbox := AABB()
+var _arms: Node3D
+var _arms_skel: Skeleton3D
+var _arms_bone: int = -1
+var _arms_anchor := Transform3D.IDENTITY
 var _body: Node3D
 var _body_mat: ShaderMaterial
 var _walk_amt: float = 0.0
@@ -193,10 +194,7 @@ func _build_viewmodel() -> void:
 	_hand_l.position = wrist_l
 	_hand_l.basis = _hand_base
 	_picker.add_child(_hand_l)
-	var wrist_off := _build_rig_hand(glove_scale_l)
-	var w_anchor := wrist_l + _hand_base * wrist_off
-	_cylinder_between(_picker, w_anchor, w_anchor + _hand_base.y * 0.162, 0.066, 0.078, shirt_mat, 14)
-	_cylinder_between(_picker, w_anchor - _hand_base.y * 0.055, w_anchor + _hand_base.y * 0.088, 0.077, 0.076, cuff_mat, 14)
+	_build_arms(glove_scale_l)
 
 	_bag_pivot = Node3D.new()
 	_bag_pivot.position = Vector3(0.62, -0.35, -0.67)
@@ -299,72 +297,74 @@ func _build_viewmodel() -> void:
 	upper_fold_b.rotation.z = -0.42
 
 
-func _build_rig_hand(glove_scale: float) -> Vector3:
-	var ps := load("res://assets/models/worker_rigged.glb") as PackedScene
+func _build_arms(glove_scale: float) -> void:
+	var ps := load("res://assets/models/arms_rigged.glb") as PackedScene
 	if ps == null:
-		return Vector3.ZERO
-	_rig_hand = ps.instantiate()
-	_hand_l.add_child(_rig_hand)
-	var mi := _find_node_of_class(_rig_hand, "MeshInstance3D") as MeshInstance3D
-	_rig_skel = _find_node_of_class(_rig_hand, "Skeleton3D") as Skeleton3D
-	_rig_ap = _find_node_of_class(_rig_hand, "AnimationPlayer") as AnimationPlayer
-	if mi == null or _rig_skel == null:
-		return Vector3.ZERO
-	var src := mi.mesh as ArrayMesh
-	if src != null:
-		mi.mesh = _hand_only_mesh(src, _rig_skel)
+		return
+	_arms = ps.instantiate()
+	_hand_l.add_child(_arms)
+	var mi := _find_node_of_class(_arms, "MeshInstance3D") as MeshInstance3D
+	_arms_skel = _find_node_of_class(_arms, "Skeleton3D") as Skeleton3D
+	if mi == null or _arms_skel == null:
+		return
+	var src_mesh := mi.mesh as ArrayMesh
+	if src_mesh != null:
+		mi.mesh = _filter_mesh(src_mesh, _arms_skel, _left_arm_bones(_arms_skel))
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var hmat := (mi.mesh as ArrayMesh).surface_get_material(0) as StandardMaterial3D
 	if hmat != null:
 		var tuned := hmat.duplicate() as StandardMaterial3D
 		tuned.metallic = 0.0
 		tuned.metallic_texture = null
-		tuned.roughness = 0.68
+		tuned.roughness = 0.72
 		tuned.roughness_texture = null
 		tuned.metallic_specular = 0.5
 		mi.material_override = tuned
 	var fill := OmniLight3D.new()
-	fill.omni_range = 1.7
-	fill.light_energy = 1.2
+	fill.omni_range = 1.9
+	fill.light_energy = 1.3
 	fill.light_color = Color(1.0, 0.95, 0.88)
-	fill.position = Vector3(0.12, 0.05, 0.30)
-	_hand_l.add_child(fill)
-	_rig_bone = _rig_skel.find_bone("LeftHand")
-	if _rig_ap != null and _rig_ap.has_animation("Idle_And_Finger_Flex"):
-		(_rig_ap.get_animation("Idle_And_Finger_Flex") as Animation).loop_mode = Animation.LOOP_LINEAR
-		_rig_ap.play("Idle_And_Finger_Flex")
-	var s := 1.0
-	var glove_src := load("res://assets/models/glove_right.obj") as ArrayMesh
-	if glove_src != null:
-		s = glove_src.get_aabb().size.length() * glove_scale / maxf(_hand_bbox.size.length(), 0.001)
-	s *= RIG_HAND_SCALE_MUL
-	var kh := _bone_rest_in_skel(_rig_skel, _rig_bone)
-	var wrist := kh.origin
-	var f_rig := (_bone_rest_in_skel(_rig_skel, _rig_skel.find_bone("LeftHandMiddle3")).origin - wrist).normalized()
-	var palm_rig := _bone_rest_in_skel(_rig_skel, _rig_skel.find_bone("LeftHandIndex1")).origin \
-		- _bone_rest_in_skel(_rig_skel, _rig_skel.find_bone("LeftHandPinky1")).origin
-	var n_rig := f_rig.cross(palm_rig).normalized()
+	fill.position = Vector3(0.1, 0.06, 0.34)
+	_picker.add_child(fill)
+	_curl_fingers("l", ARMS_CURL)
+	_curl_fingers("r", ARMS_CURL)
+	_arms_bone = _arms_skel.find_bone("hand_l")
+	var kh := _bone_rest_in_skel(_arms_skel, _arms_bone)
+	var w := kh.origin
+	var f_rig := (_bone_rest_in_skel(_arms_skel, _arms_skel.find_bone("index_03_l")).origin - w).normalized()
+	var t_rig := (_bone_rest_in_skel(_arms_skel, _arms_skel.find_bone("thumb_03_l")).origin - w).normalized()
+	var n_rig := f_rig.cross(t_rig).normalized()
 	var fr := Basis(f_rig, n_rig.cross(f_rig), n_rig)
 	var f_t := Vector3(0.0, -0.225, 0.085).normalized()
-	var n_t := f_t.cross(Vector3.RIGHT).normalized()
+	var n_t := (f_t.cross(Vector3.RIGHT)).normalized() * (-1.0 if ARMS_FLIP else 1.0)
 	var ft := Basis(f_t, n_t.cross(f_t), n_t)
 	var rot := ft * fr.transposed()
-	var knuckle := _bone_rest_in_skel(_rig_skel, _rig_skel.find_bone("LeftHandMiddle1")).origin
+	var s := ARMS_SCALE
+	var palm := (_bone_rest_in_skel(_arms_skel, _arms_skel.find_bone("index_01_l")).origin \
+		+ _bone_rest_in_skel(_arms_skel, _arms_skel.find_bone("pinky_01_l")).origin) * 0.5
 	var bar_target := Vector3(0.0, -0.225, 0.085) * glove_scale
-	var offset := bar_target - rot * ((knuckle - wrist) * s) + RIG_HAND_OFFSET
 	var dB: Basis = rot * kh.basis
-	_rig_anchor = Transform3D(Basis(dB.x * s, dB.y * s, dB.z * s), offset)
-	return offset
+	_arms_anchor = Transform3D(Basis(dB.x * s, dB.y * s, dB.z * s), bar_target - rot * ((palm - w) * s) + ARMS_OFFSET)
+	_place_arms()
 
 
-func _hand_only_mesh(src: ArrayMesh, skel: Skeleton3D) -> ArrayMesh:
+func _left_arm_bones(skel: Skeleton3D) -> Array:
+	var names := ["upperarm_l", "lowerarm_l", "hand_l"]
+	for finger in ["index", "middle", "ring", "pinky", "thumb"]:
+		for j in 3:
+			names.append(finger + "_0" + str(j + 1) + "_l")
+	var bones := []
+	for n in names:
+		var b := skel.find_bone(n)
+		if b >= 0:
+			bones.append(b)
+	return bones
+
+
+func _filter_mesh(src: ArrayMesh, skel: Skeleton3D, keep_list: Array) -> ArrayMesh:
 	var keep_bones := {}
-	keep_bones[skel.find_bone("LeftHand")] = true
-	for base in ["Thumb", "Index", "Middle", "Ring", "Pinky"]:
-		for n in 3:
-			var bi := skel.find_bone("LeftHand" + base + str(n + 1))
-			if bi >= 0:
-				keep_bones[bi] = true
+	for b in keep_list:
+		keep_bones[b] = true
 	var arrays := src.surface_get_arrays(0)
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
@@ -385,8 +385,6 @@ func _hand_only_mesh(src: ArrayMesh, skel: Skeleton3D) -> ArrayMesh:
 	var nb := PackedInt32Array()
 	var ni := PackedInt32Array()
 	var remap := {}
-	var bmin := Vector3(1e9, 1e9, 1e9)
-	var bmax := Vector3(-1e9, -1e9, -1e9)
 	for t in tri_count:
 		var tri := [t * 3, t * 3 + 1, t * 3 + 2]
 		if not sequential:
@@ -419,10 +417,7 @@ func _hand_only_mesh(src: ArrayMesh, skel: Skeleton3D) -> ArrayMesh:
 				for infl in 4:
 					nb.append(int(bones[vi * 4 + infl]))
 					nw.append(weights[vi * 4 + infl])
-				bmin = bmin.min(verts[vi])
-				bmax = bmax.max(verts[vi])
 			ni.append(nvi)
-	_hand_bbox = AABB(bmin, bmax - bmin)
 	var out := []
 	out.resize(Mesh.ARRAY_MAX)
 	out[Mesh.ARRAY_VERTEX] = nv
@@ -440,6 +435,40 @@ func _hand_only_mesh(src: ArrayMesh, skel: Skeleton3D) -> ArrayMesh:
 	if smat != null:
 		m.surface_set_material(0, smat)
 	return m
+
+
+func _place_arms() -> void:
+	if _arms == null or _arms_skel == null or _arms_bone < 0:
+		return
+	var bw := _arms_skel.global_transform * _arms_skel.get_bone_global_pose(_arms_bone)
+	var k := _arms.global_transform.affine_inverse() * bw
+	_arms.transform = _arms_anchor * k.affine_inverse()
+
+
+func _curl_fingers(side: String, amount: float) -> void:
+	var hand := _arms_skel.find_bone("hand_" + side)
+	if hand < 0:
+		return
+	var kh := _bone_rest_in_skel(_arms_skel, hand)
+	var f := (_bone_rest_in_skel(_arms_skel, _arms_skel.find_bone("index_03_" + side)).origin - kh.origin).normalized()
+	var th := (_bone_rest_in_skel(_arms_skel, _arms_skel.find_bone("thumb_03_" + side)).origin - kh.origin).normalized()
+	var axis := f.cross(f.cross(th)).normalized()
+	var curls := [0.5, 0.8, 0.55]
+	for finger in ["index", "middle", "ring", "pinky"]:
+		for j in 3:
+			var bn := _arms_skel.find_bone(finger + "_0" + str(j + 1) + "_" + side)
+			if bn < 0:
+				continue
+			var parent := _arms_skel.get_bone_parent(bn)
+			var pframe := _bone_rest_in_skel(_arms_skel, parent) if parent >= 0 else _bone_rest_in_skel(_arms_skel, bn)
+			var axis_local := (pframe.basis.inverse() * axis).normalized()
+			_arms_skel.set_bone_pose_rotation(bn, Quaternion(axis_local, curls[j] * amount))
+	var thumb := _arms_skel.find_bone("thumb_01_" + side)
+	if thumb >= 0:
+		var tp := _arms_skel.get_bone_parent(thumb)
+		var tf := _bone_rest_in_skel(_arms_skel, tp) if tp >= 0 else _bone_rest_in_skel(_arms_skel, thumb)
+		var axl := (tf.basis.inverse() * axis).normalized()
+		_arms_skel.set_bone_pose_rotation(thumb, Quaternion(axl, 0.35 * amount))
 
 
 func _find_node_of_class(n: Node, cn: String) -> Node:
@@ -866,17 +895,7 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 		var roll := Basis(Quaternion(_hand_bar, 0.07 * close))
 		_hand_l.basis = roll * Basis(Quaternion(_hand_right, idle_sway)) * _hand_base
 		_hand_l.position = _hand_wrist + _hand_right * 0.006 * close
-		if _rig_hand != null and _rig_skel != null and _rig_bone >= 0:
-			var bw := _rig_skel.global_transform * _rig_skel.get_bone_global_pose(_rig_bone)
-			var k := _rig_hand.global_transform.affine_inverse() * bw
-			_rig_hand.transform = _rig_anchor * k.affine_inverse()
-		if _rig_ap != null:
-			if _grab_anim > 0.05 and not _rig_squeeze:
-				_rig_squeeze = true
-				_rig_ap.play("Grab_And_Squeeze_Fingers", 0.1, 2.5)
-			elif _rig_squeeze and not _rig_ap.is_playing():
-				_rig_squeeze = false
-				_rig_ap.play("Idle_And_Finger_Flex", 0.3, 1.0)
+		_place_arms()
 	_grab_anim = maxf(_grab_anim - delta * 4.5, 0.0)
 
 
