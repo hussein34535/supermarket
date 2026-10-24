@@ -312,6 +312,21 @@ func _build_rig_hand(glove_scale: float) -> Vector3:
 	if src != null:
 		mi.mesh = _hand_only_mesh(src, _rig_skel)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var hmat := (mi.mesh as ArrayMesh).surface_get_material(0) as StandardMaterial3D
+	if hmat != null:
+		var tuned := hmat.duplicate() as StandardMaterial3D
+		tuned.metallic = 0.0
+		tuned.metallic_texture = null
+		tuned.roughness = 0.68
+		tuned.roughness_texture = null
+		tuned.metallic_specular = 0.5
+		mi.material_override = tuned
+	var fill := OmniLight3D.new()
+	fill.omni_range = 1.7
+	fill.light_energy = 1.2
+	fill.light_color = Color(1.0, 0.95, 0.88)
+	fill.position = Vector3(0.12, 0.05, 0.30)
+	_hand_l.add_child(fill)
 	_rig_bone = _rig_skel.find_bone("LeftHand")
 	if _rig_ap != null and _rig_ap.has_animation("Idle_And_Finger_Flex"):
 		(_rig_ap.get_animation("Idle_And_Finger_Flex") as Animation).loop_mode = Animation.LOOP_LINEAR
@@ -377,7 +392,7 @@ func _hand_only_mesh(src: ArrayMesh, skel: Skeleton3D) -> ArrayMesh:
 		for v in 3:
 			var vi0: int = tri[v]
 			for infl in 4:
-				if weights[vi0 * 4 + infl] >= 0.45 and keep_bones.get(int(bones[vi0 * 4 + infl]), false):
+				if weights[vi0 * 4 + infl] >= 0.35 and keep_bones.get(int(bones[vi0 * 4 + infl]), false):
 					keep = true
 					break
 			if keep:
