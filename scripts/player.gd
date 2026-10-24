@@ -9,6 +9,8 @@ const MOUSE_SENS := 0.0022
 const GRAVITY := 18.0
 const TP_CAM_DIST := 2.7
 const BODY_SCALE := 1.5
+const RIG_HAND_SCALE_MUL := 0.71
+const RIG_HAND_OFFSET := Vector3.ZERO
 
 var main: Node3D
 var camera: Camera3D
@@ -335,6 +337,7 @@ func _build_rig_hand(glove_scale: float) -> Vector3:
 	var glove_src := load("res://assets/models/glove_right.obj") as ArrayMesh
 	if glove_src != null:
 		s = glove_src.get_aabb().size.length() * glove_scale / maxf(_hand_bbox.size.length(), 0.001)
+	s *= RIG_HAND_SCALE_MUL
 	var kh := _bone_rest_in_skel(_rig_skel, _rig_bone)
 	var wrist := kh.origin
 	var f_rig := (_bone_rest_in_skel(_rig_skel, _rig_skel.find_bone("LeftHandMiddle3")).origin - wrist).normalized()
@@ -348,7 +351,7 @@ func _build_rig_hand(glove_scale: float) -> Vector3:
 	var rot := ft * fr.transposed()
 	var knuckle := _bone_rest_in_skel(_rig_skel, _rig_skel.find_bone("LeftHandMiddle1")).origin
 	var bar_target := Vector3(0.0, -0.225, 0.085) * glove_scale
-	var offset := bar_target - rot * ((knuckle - wrist) * s)
+	var offset := bar_target - rot * ((knuckle - wrist) * s) + RIG_HAND_OFFSET
 	var dB: Basis = rot * kh.basis
 	_rig_anchor = Transform3D(Basis(dB.x * s, dB.y * s, dB.z * s), offset)
 	return offset
