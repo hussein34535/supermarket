@@ -9,12 +9,20 @@ const MOUSE_SENS := 0.0022
 const GRAVITY := 18.0
 const TP_CAM_DIST := 2.7
 const BODY_SCALE := 1.5
+const TOOL_SCALE := 0.85
 const ARM_L_SCALE := 1.0
-const ARM_L_FORE := Vector3(-0.81, 0.27, 0.34)
-const ARM_L_GRIP := Vector3(0.068, -0.012, -0.045)
+const ARM_L_FORE := Vector3(-0.35, -0.55, 0.76)
+const ARM_L_GRIP := Vector3(0.0422, 0.0039, 0.0)
+const ARM_L_ROLL := 0.0
 const ARM_R_SCALE := 1.0
 const ARM_R_FORE := Vector3(0.56, -0.60, 0.57)
 const ARM_R_GRIP := Vector3(0.0, -0.01, 0.0)
+const ARM_R_ROLL := 0.0
+# Finger curl in radians: proximal, middle, distal phalanx.
+const CURL_PROX := 0.95
+const CURL_MID := 1.30
+const CURL_DIST := 0.70
+const CURL_THUMB := 0.55
 
 var main: Node3D
 var camera: Camera3D
@@ -158,7 +166,7 @@ func _build_viewmodel() -> void:
 
 	_picker = Node3D.new()
 	_viewmodel.add_child(_picker)
-	var grip := Vector3(-0.36, -0.38, -0.62)
+	var grip := Vector3(-0.2924, -0.2897, -0.62)
 	var tool_axis := Vector3(0.244, 0.157, -0.957).normalized()
 	var tool_lift := (Vector3.UP - tool_axis * tool_axis.dot(Vector3.UP)).normalized()
 	var tool_side := tool_axis.cross(tool_lift).normalized()
@@ -168,7 +176,7 @@ func _build_viewmodel() -> void:
 	_tool.name = "Grabber"
 	_tool.position = grip
 	_tool.transform.basis = Basis(tool_axis, tool_lift, tool_side)
-	_tool.scale = Vector3.ONE * 1.2
+	_tool.scale = Vector3.ONE * TOOL_SCALE
 	_picker.add_child(_tool)
 	_tool.add_child(grabber)
 	grabber.position = Vector3(0.47, -0.09, 0.0)
@@ -186,7 +194,10 @@ func _build_viewmodel() -> void:
 			mesh_inst.material_override = _grab_material
 		mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
-	var grip_bar := (tool_axis * 0.592 + tool_lift * 0.806).normalized()
+	# Grip frame measured from the grabber mesh in grabber-local space, then rotated into
+	# the tool frame (the mesh node itself carries a +90 deg X rotation). The pistol grip
+	# runs from (-0.38, 0.235) down to the butt at (-0.465, 0.02); its centre is (-0.42, 0.13).
+	var grip_bar := (_tool.transform.basis * Vector3(0.4277, 0.9039, 0.0)).normalized()
 	var grip_fwd := (tool_axis - grip_bar * grip_bar.dot(tool_axis)).normalized()
 	var grip_right := grip_fwd.cross(grip_bar).normalized()
 	_hand_bar = grip_bar
@@ -210,8 +221,14 @@ func _build_viewmodel() -> void:
 			mi_l.material_override = skin_mat
 			mi_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			_arms_l_bone = _arms_l_skel.find_bone("hand_l")
+			_curl_hand(_arms_l_skel, "l", CURL_PROX, CURL_MID, CURL_DIST, 0.0)
 			_arms_l_anchor = _arm_anchor(_arms_l_skel, "l", ARM_L_SCALE, grip_bar,
-				ARM_L_FORE, _tool.transform * ARM_L_GRIP)
+				ARM_L_FORE, _tool.transform * ARM_L_GRIP, ARM_L_ROLL)
+			var lr := _arms_l_anchor.basis * _bone_rest_in_skel(_arms_l_skel, _arms_l_bone).basis.inverse()
+			var l_palm := (lr * _palm_normal(_arms_l_skel, "l")).normalized()
+			var l_fwd: Vector3 = _tool.transform.basis.x.normalized()
+			l_fwd = (l_fwd - grip_bar * grip_bar.dot(l_fwd)).normalized()
+			_pose_thumb(_arms_l_skel, "l", lr, (l_fwd * 1.0 + grip_bar * 0.15 - l_palm * 0.40).normalized(), grip_bar)
 			_place_arm_l()
 
 	var fill_light := OmniLight3D.new()
@@ -241,9 +258,10 @@ func _build_viewmodel() -> void:
 			mi_r.material_override = skin_mat
 			mi_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			_arms_r_bone = _arms_r_skel.find_bone("hand_r")
+			_curl_hand(_arms_r_skel, "r", CURL_PROX, CURL_MID, CURL_DIST, CURL_THUMB)
 			var bag_bar := (Vector3.UP - Vector3.RIGHT * Vector3.RIGHT.dot(Vector3.UP)).normalized()
 			_arms_r_anchor = _arm_anchor(_arms_r_skel, "r", ARM_R_SCALE, bag_bar,
-				ARM_R_FORE, ARM_R_GRIP)
+				ARM_R_FORE, ARM_R_GRIP, ARM_R_ROLL)
 			_place_arm_r()
 
 	var fill_light_r := OmniLight3D.new()
@@ -495,24 +513,19 @@ func _find_node_of_class(n: Node, cn: String) -> Node:
 	return null
 
 
-func _arm_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, fore_dir: Vector3, target: Vector3) -> Transform3D:
+func _arm_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, fore_dir: Vector3, target: Vector3, roll: float = 0.0) -> Transform3D:
 	# Match two anatomical axes to two target axes:
 	#   knuckle line  -> axis of the handle the fingers close around
 	#   wrist->elbow  -> direction the forearm leaves the handle
 	var hb := skel.find_bone("hand_" + side)
 	if hb < 0:
 		return Transform3D.IDENTITY
-	var hb_rest := _bone_rest_in_skel(skel, hb)
-	var w := hb_rest.origin
-	var ki := _bone_rest_in_skel(skel, skel.find_bone("index_01_" + side)).origin
-	var kp := _bone_rest_in_skel(skel, skel.find_bone("pinky_01_" + side)).origin
-	var el := _bone_rest_in_skel(skel, skel.find_bone("lowerarm_" + side)).origin
-	var gc := Vector3.ZERO
-	for f in ["index", "middle", "ring", "pinky"]:
-		var b := skel.find_bone(f + "_02_" + side)
-		if b >= 0:
-			gc += _bone_rest_in_skel(skel, b).origin
-	gc *= 0.25
+	var hb_pose := skel.get_bone_global_pose(hb)
+	var w := hb_pose.origin
+	var ki := skel.get_bone_global_pose(skel.find_bone("index_01_" + side)).origin
+	var kp := skel.get_bone_global_pose(skel.find_bone("pinky_01_" + side)).origin
+	var el := skel.get_bone_global_pose(skel.find_bone("lowerarm_" + side)).origin
+	var gc := _tunnel_center(skel, side)
 	var u1 := (ki - kp).normalized()
 	var u2 := ((el - w) - u1 * u1.dot(el - w)).normalized()
 	var u3 := u1.cross(u2)
@@ -522,8 +535,115 @@ func _arm_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, fo
 	var e3 := e1.cross(e2)
 	var dst := Basis(e1, e2, e3)
 	var r := dst * src.transposed()
+	if not is_zero_approx(roll):
+		r = Basis(e1, roll) * r
 	var rs := Basis(r.x * s, r.y * s, r.z * s)
-	return Transform3D(rs * hb_rest.basis, target + rs * (w - gc))
+	return Transform3D(rs * hb_pose.basis, target + rs * (w - gc))
+
+
+func _palm_normal(skel: Skeleton3D, side: String) -> Vector3:
+	# The thumb base sits on the palm side of the hand, so the vector from the
+	# wrist to it (minus the knuckle-line component) points out of the palm.
+	var hb := skel.find_bone("hand_" + side)
+	var ib := skel.find_bone("index_01_" + side)
+	var pb := skel.find_bone("pinky_01_" + side)
+	var tb := skel.find_bone("thumb_01_" + side)
+	if hb < 0 or ib < 0 or pb < 0 or tb < 0:
+		return Vector3.DOWN
+	var hinge := (_bone_rest_in_skel(skel, pb).origin - _bone_rest_in_skel(skel, ib).origin).normalized()
+	var t := _bone_rest_in_skel(skel, tb).origin - _bone_rest_in_skel(skel, hb).origin
+	t -= hinge * hinge.dot(t)
+	return t.normalized()
+
+
+func _tunnel_center(skel: Skeleton3D, side: String) -> Vector3:
+	# Centre of the opening the fingers close around: midway between the palm
+	# surface and the middle phalanges (which lie on the far side of the handle).
+	var hb := skel.find_bone("hand_" + side)
+	var knuckles := Vector3.ZERO
+	var mids := Vector3.ZERO
+	var n := 0
+	for f in ["index", "middle", "ring", "pinky"]:
+		var b1 := skel.find_bone(f + "_01_" + side)
+		var b2 := skel.find_bone(f + "_02_" + side)
+		if b1 >= 0 and b2 >= 0:
+			knuckles += skel.get_bone_global_pose(b1).origin
+			mids += skel.get_bone_global_pose(b2).origin
+			n += 1
+	if hb < 0 or n == 0:
+		return Vector3.ZERO
+	knuckles /= float(n)
+	mids /= float(n)
+	var palm := _palm_normal(skel, side)
+	var palm_surface := (skel.get_bone_global_pose(hb).origin + knuckles) * 0.5 + palm * 0.030
+	return (palm_surface + mids) * 0.5
+
+
+func _curl_hand(skel: Skeleton3D, side: String, prox: float, mid: float, dist: float, thumb_amt: float) -> void:
+	# Curl every finger around the knuckle line, which is the natural hinge for
+	# all phalanges. Rotating each bone about the same skeleton-space axis keeps
+	# the hinge invariant in every child frame, so the whole chain folds cleanly.
+	var hb := skel.find_bone("hand_" + side)
+	var ib := skel.find_bone("index_01_" + side)
+	var pb := skel.find_bone("pinky_01_" + side)
+	if hb < 0 or ib < 0 or pb < 0:
+		return
+	var ki := _bone_rest_in_skel(skel, ib).origin
+	var kp := _bone_rest_in_skel(skel, pb).origin
+	var hinge := (kp - ki).normalized()
+	var palm := _palm_normal(skel, side)
+	var fwd := (_bone_rest_in_skel(skel, skel.find_bone("index_02_" + side)).origin - ki).normalized()
+	if hinge.cross(fwd).dot(palm) < 0.0:
+		hinge = -hinge
+	var angles := [prox, mid, dist]
+	for f in ["index", "middle", "ring", "pinky"]:
+		for j in 3:
+			var b := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
+			if b < 0:
+				continue
+			var axis := (_bone_rest_in_skel(skel, b).basis.inverse() * hinge).normalized()
+			skel.set_bone_pose_rotation(b, Quaternion(axis, angles[j]))
+	# Thumb: fold it toward the palm, then across the grip.
+	var t1 := skel.find_bone("thumb_01_" + side)
+	var t2 := skel.find_bone("thumb_02_" + side)
+	var t3 := skel.find_bone("thumb_03_" + side)
+	if t1 >= 0 and t2 >= 0:
+		var tdir := (_bone_rest_in_skel(skel, t2).origin - _bone_rest_in_skel(skel, t1).origin).normalized()
+		var th := tdir.cross(palm)
+		if th.length() > 0.001:
+			th = th.normalized()
+			for b in [t1, t2, t3]:
+				if b < 0:
+					continue
+				var axis := (_bone_rest_in_skel(skel, b).basis.inverse() * th).normalized()
+				skel.set_bone_pose_rotation(b, Quaternion(axis, thumb_amt))
+	skel.force_update_all_bone_transforms()
+
+
+func _pose_thumb(skel: Skeleton3D, side: String, r: Basis, d_world: Vector3, bar_world: Vector3) -> void:
+	# Point the thumb along the grip (instead of splayed up in the rest pose),
+	# then curl the last two joints around the handle.
+	var t1 := skel.find_bone("thumb_01_" + side)
+	var t2 := skel.find_bone("thumb_02_" + side)
+	var t3 := skel.find_bone("thumb_03_" + side)
+	if t1 < 0:
+		return
+	var d_rest := (r.inverse() * d_world).normalized()
+	var rb := _bone_rest_in_skel(skel, t1).basis
+	skel.set_bone_pose_rotation(t1, Quaternion(Vector3.UP, (rb.inverse() * d_rest).normalized()))
+	skel.force_update_all_bone_transforms()
+	var bend := bar_world.normalized()
+	var angs := {t2: 0.38, t3: 0.46}
+	for b in angs:
+		if b < 0:
+			continue
+		var p := skel.get_bone_parent(b)
+		var frame := skel.get_bone_rest(b).basis
+		if p >= 0:
+			frame = skel.get_bone_global_pose(p).basis * frame
+		var axis := (frame.inverse() * bend).normalized()
+		skel.set_bone_pose_rotation(b, Quaternion(axis, angs[b]))
+		skel.force_update_all_bone_transforms()
 
 
 func _place_arm_l() -> void:
