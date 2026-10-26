@@ -33,6 +33,18 @@ func _ready() -> void:
 	_setup_ui()
 	GameState.level_changed.connect(_on_level_changed)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if "--capture-test" in OS.get_cmdline_args() or "--capture-test" in OS.get_cmdline_user_args():
+		_capture_and_quit()
+
+
+func _capture_and_quit() -> void:
+	await get_tree().create_timer(1.2).timeout
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	if img != null:
+		var target_path := ProjectSettings.globalize_path("res://screenshot_result.png")
+		img.save_png(target_path)
+	get_tree().quit()
 
 
 func _process(delta: float) -> void:
@@ -1115,16 +1127,21 @@ func _on_level_changed(new_level: int, bonus: int) -> void:
 
 
 func _random_floor_position() -> Vector3:
-	for attempt in 200:
+	for attempt in 300:
 		var x := _rng.randf_range(-20.0, 20.0)
 		var z := _rng.randf_range(-14.0, 14.0)
 		var p := Vector3(x, 0, z)
 		if _is_position_clear(p):
 			return p
-	return Vector3(_rng.randf_range(-20, 20), 0, _rng.randf_range(-14, 14))
+	return Vector3(_rng.randf_range(-18.0, 18.0), 0, _rng.randf_range(-12.0, 1.0))
 
 
 func _is_position_clear(p: Vector3) -> bool:
+	# Keep player spawn point and forward field of view completely clear
+	if p.distance_to(Vector3(0, 0, 8.0)) < 4.5:
+		return false
+	if absf(p.x) < 2.5 and p.z > 3.5 and p.z < 11.0:
+		return false
 	for shelf in shelves:
 		var local := shelf.to_local(p)
 		var shelf_len: float = shelf.get_meta("shelf_length", 14.0)
@@ -1146,7 +1163,7 @@ func spawn_floor_product(dept: int, pos: Vector3, dropped: bool) -> void:
 	product.setup(dept, GameState.DEPARTMENT_COLORS[dept])
 	var y := product.position.y
 	if dropped:
-		var ahead := player.global_transform.basis * Vector3(0, 0, -1.5)
+		var ahead := player.global_transform.basis * Vector3(0, 0, -2.0)
 		product.position = Vector3(player.global_position.x + ahead.x, y, player.global_position.z + ahead.z)
 	else:
 		product.position = Vector3(pos.x, y, pos.z)

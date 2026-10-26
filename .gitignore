@@ -10,3 +10,6 @@ tools/
 # OS
 .DS_Store
 Thumbs.db
+
+# Dev QA captures
+screenshot_result.png
