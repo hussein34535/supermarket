@@ -5,6 +5,8 @@ signal upgrades_changed
 signal progress_changed
 signal level_changed(level: int, bonus: int)
 signal powerup_state_changed(index: int)
+signal streak_changed
+signal cleaned_changed
 
 const TOTAL_PRODUCTS: int = 852
 const LEVEL_TARGETS: Array[int] = [100, 250, 450, 650, 852]
@@ -24,14 +26,26 @@ const DEPARTMENT_COLORS: Array[Color] = [
 	Color(0.62, 0.80, 1.00),
 ]
 
+# Base cash paid for stocking one product, per department.
+const DEPARTMENT_PRICES: Array[int] = [4, 5, 3, 4, 6, 5]
+# Chain placements faster than this to build a combo multiplier.
+const STREAK_WINDOW: float = 6.0
+const STREAK_MULTIPLIERS: Array[float] = [1.0, 1.0, 1.5, 2.0, 2.5, 3.0]
+
 var cash: int = 0
 var placed: int = 0
 var level: int = 1
 var won: bool = false
 
+var streak: int = 0
+var streak_timer: float = 0.0
+var earned: int = 0
+var cleaned: int = 0
+
 var speed_level: int = 0
 var reach_level: int = 0
 var capacity_level: int = 0
+var clean_level: int = 0
 var powerup_levels: Array[int] = [0, 0, 0, 0]
 
 var powerup_cooldowns: Array[float] = [0.0, 0.0, 0.0, 0.0]
@@ -45,6 +59,7 @@ const POWERUP_KEYS: PackedStringArray = ["1", "2", "3", "4"]
 const _SPEED_COSTS: Array[int] = [25, 60, 120, 250, 500]
 const _REACH_COSTS: Array[int] = [30, 70, 140, 280, 560]
 const _CAPACITY_COSTS: Array[int] = [40, 90, 180, 360, 720]
+const _CLEAN_COSTS: Array[int] = [60, 150, 300, 500, 800]
 const _POWERUP_UNLOCK: Array[int] = [50, 75, 100, 125]
 const _POWERUP_UPGRADE: Array[int] = [90, 180, 350]
 
@@ -53,20 +68,29 @@ func reset() -> void:
 	placed = 0
 	level = 1
 	won = false
+	streak = 0
+	streak_timer = 0.0
+	earned = 0
+	cleaned = 0
 	speed_level = 0
 	reach_level = 0
 	capacity_level = 0
+	clean_level = 0
 	powerup_levels = [0, 0, 0, 0]
 	powerup_cooldowns = [0.0, 0.0, 0.0, 0.0]
 	powerup_active = [0.0, 0.0, 0.0, 0.0]
 	cash_changed.emit()
 	upgrades_changed.emit()
 	progress_changed.emit()
+	streak_changed.emit()
+	cleaned_changed.emit()
 	for i in 4:
 		powerup_state_changed.emit(i)
 
 func add_cash(v: int) -> void:
 	cash += v
+	if v > 0:
+		earned += v
 	cash_changed.emit()
 
 func add_placed(n: int = 1) -> void:
@@ -76,8 +100,7 @@ func add_placed(n: int = 1) -> void:
 			var bonus: int = LEVEL_BONUSES[level - 1]
 			level += 1
 			if bonus > 0:
-				cash += bonus
-				cash_changed.emit()
+				add_cash(bonus)
 			level_changed.emit(level, bonus)
 		if placed >= TOTAL_PRODUCTS:
 			won = true
@@ -124,6 +147,43 @@ func capacity_cost() -> int:
 		return -1
 	return _CAPACITY_COSTS[capacity_level]
 
+func clean_cost() -> int:
+	if clean_level >= _CLEAN_COSTS.size():
+		return -1
+	return _CLEAN_COSTS[clean_level]
+
+func product_price(dept: int) -> int:
+	return DEPARTMENT_PRICES[clampi(dept, 0, DEPARTMENT_PRICES.size() - 1)]
+
+func streak_multiplier() -> float:
+	return STREAK_MULTIPLIERS[clampi(streak - 1, 0, STREAK_MULTIPLIERS.size() - 1)]
+
+func placement_value(dept: int) -> int:
+	return int(round(float(product_price(dept)) * streak_multiplier()))
+
+# Call once per stocked product. Extends the combo chain and returns the payout.
+func register_placement(dept: int) -> int:
+	streak = mini(streak + 1, 99)
+	streak_timer = STREAK_WINDOW
+	streak_changed.emit()
+	return placement_value(dept)
+
+func trash_payout(base: int) -> int:
+	return int(round(float(base) * (1.0 + clean_level * 0.35)))
+
+func add_cleaned(n: int = 1) -> void:
+	cleaned += n
+	cleaned_changed.emit()
+
+func tick_economy(delta: float) -> void:
+	if streak <= 0:
+		return
+	streak_timer -= delta
+	if streak_timer <= 0.0:
+		streak_timer = 0.0
+		streak = 0
+		streak_changed.emit()
+
 func powerup_cost(index: int) -> int:
 	var lvl: int = powerup_levels[index]
 	if lvl <= 0:
@@ -158,6 +218,16 @@ func try_buy_capacity() -> bool:
 		return false
 	cash -= cost
 	capacity_level += 1
+	cash_changed.emit()
+	upgrades_changed.emit()
+	return true
+
+func try_buy_clean() -> bool:
+	var cost := clean_cost()
+	if cost < 0 or cash < cost:
+		return false
+	cash -= cost
+	clean_level += 1
 	cash_changed.emit()
 	upgrades_changed.emit()
 	return true

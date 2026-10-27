@@ -5,6 +5,8 @@ signal stack_changed
 signal interacted(held: bool, target_dept: int)
 signal powerup_used(index: int)
 
+const TrashScript := preload("res://scripts/trash.gd")
+
 const MOUSE_SENS := 0.0022
 const GRAVITY := 18.0
 const TP_CAM_DIST := 2.7
@@ -115,7 +117,8 @@ func _ready() -> void:
 
 	ray = RayCast3D.new()
 	ray.target_position = Vector3(0, 0, -GameState.interact_distance())
-	ray.collision_mask = 1
+	# Layer 1 = world / shelves / products, layer 8 = collectable trash.
+	ray.collision_mask = 1 | 8
 	ray.enabled = true
 	camera.add_child(ray)
 
@@ -1052,15 +1055,16 @@ func _update_body(delta: float, move_vec: Vector3) -> void:
 
 func try_interact() -> void:
 	_grab_anim = 1.0
+	ray.force_raycast_update()
+	var collider: Object = ray.get_collider() if ray.is_colliding() else null
+	if collider is TrashScript:
+		_collect_trash(collider)
+		return
 	if stack.size() >= GameState.capacity():
 		_flash_hint("Stack full! Upgrade capacity with U")
 		Sfx.play("error", 1.0, -6.0)
 		return
 
-	ray.force_raycast_update()
-	if not ray.is_colliding():
-		return
-	var collider := ray.get_collider()
 	if collider == null:
 		return
 
@@ -1070,6 +1074,13 @@ func try_interact() -> void:
 		_place_on_shelf(collider)
 	elif collider.get_parent() is Shelf:
 		_place_on_shelf(collider.get_parent())
+
+
+func _collect_trash(piece: TrashScript) -> void:
+	var target := camera.global_position + camera.global_transform.basis * Vector3(0.22, -0.32, -0.5)
+	piece.collect(target)
+	_bag_kick = 0.85
+	Sfx.play("pickup", _rng.randf_range(1.15, 1.32))
 
 
 func _pick_up_product(product: Product) -> void:
@@ -1202,13 +1213,19 @@ func _update_hint() -> void:
 			_hint_label.modulate = Color(1, 0.4, 0.4)
 			_hint_label.visible = true
 		_hint_label.global_position = p.global_position + Vector3(0, 0.6, 0)
+	elif collider is TrashScript:
+		var trash: TrashScript = collider
+		_hint_label.text = "[E] Clean up  +$%d" % GameState.trash_payout(trash.value)
+		_hint_label.modulate = Color(0.55, 1.0, 0.75)
+		_hint_label.global_position = trash.global_position + Vector3(0, 0.82, 0)
+		_hint_label.visible = true
 	elif collider != null and (collider.has_meta("is_shelf") or collider.get_parent() is Shelf):
 		var shelf: Shelf = collider if collider is Shelf else collider.get_parent()
 		if stack.is_empty():
 			_hint_label.text = "%s shelf" % GameState.DEPARTMENT_NAMES[shelf.department]
 			_hint_label.modulate = shelf.dept_color.lightened(0.15)
 		elif stack.back() == shelf.department:
-			_hint_label.text = "[E] Place %s" % GameState.DEPARTMENT_NAMES[shelf.department]
+			_hint_label.text = "[E] Place %s  •  $%d" % [GameState.DEPARTMENT_NAMES[shelf.department], GameState.product_price(shelf.department)]
 			_hint_label.modulate = Color(0.5, 1, 0.5)
 		else:
 			_hint_label.text = "Need %s shelf" % GameState.DEPARTMENT_NAMES[stack.back()]

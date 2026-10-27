@@ -8,6 +8,9 @@ var progress_label: Label
 var progress_bar: ProgressBar
 var capacity_label: Label
 var top_item_label: Label
+var combo_label: Label
+var streak_bar: ProgressBar
+var trash_label: Label
 var powerup_buttons: Array[Button] = []
 var toast_box: VBoxContainer
 
@@ -15,14 +18,19 @@ var upgrades_panel: PanelContainer
 var pause_panel: PanelContainer
 var win_panel: PanelContainer
 var upgrades_cash_label: Label
+var shop_stats_label: Label
 var win_stats_label: Label
 var start_banner: Control
 var level_banner: Control
 var _cash_tween: Tween
+var _combo_tween: Tween
+var _combo_active: bool = false
+var _last_mult: float = 1.0
 
 var speed_btn: Button
 var reach_btn: Button
 var cap_btn: Button
+var clean_btn: Button
 var powerup_shop_btns: Array[Button] = []
 
 var mobile_root: Control
@@ -59,6 +67,8 @@ func _ready() -> void:
 	GameState.upgrades_changed.connect(_update_shop)
 	GameState.level_changed.connect(_on_level_changed)
 	GameState.powerup_state_changed.connect(_on_powerup_state)
+	GameState.streak_changed.connect(_on_streak_changed)
+	GameState.cleaned_changed.connect(_on_cleaned_changed)
 	player.stack_changed.connect(_update_capacity)
 	player.powerup_used.connect(func(_i: int) -> void: _refresh_powerups())
 	_update_cash()
@@ -66,6 +76,7 @@ func _ready() -> void:
 	_update_capacity()
 	_update_shop()
 	_refresh_powerups()
+	_update_earnings()
 
 
 func _style(bg: Color, border: Color = Color(0, 0, 0, 0), radius: int = 12, margin: int = 0, border_w: int = 0) -> StyleBoxFlat:
@@ -200,6 +211,51 @@ func _build_hud() -> void:
 		bottom.add_child(btn)
 		powerup_buttons.append(btn)
 
+	_build_earnings_strip()
+
+
+func _build_earnings_strip() -> void:
+	var strip := PanelContainer.new()
+	strip.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	strip.position = Vector2(14, 70)
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	strip.add_theme_stylebox_override("panel", _style(Color(0.04, 0.05, 0.08, 0.62), Color(0.55, 1.0, 0.7, 0.22), 10, 10, 1))
+	add_child(strip)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	strip.add_child(row)
+
+	combo_label = Label.new()
+	combo_label.text = "COMBO x1.0"
+	combo_label.add_theme_font_size_override("font_size", 15)
+	combo_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.45))
+	combo_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	combo_label.pivot_offset = Vector2(0, 10)
+	combo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(combo_label)
+
+	streak_bar = ProgressBar.new()
+	streak_bar.custom_minimum_size = Vector2(80, 6)
+	streak_bar.show_percentage = false
+	streak_bar.max_value = 100.0
+	streak_bar.value = 0.0
+	streak_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	streak_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	streak_bar.modulate = Color(1, 1, 1, 0.35)
+	streak_bar.add_theme_stylebox_override("background", _style(Color(1, 1, 1, 0.12), Color(0, 0, 0, 0), 3))
+	streak_bar.add_theme_stylebox_override("fill", _style(Color(1.0, 0.85, 0.35), Color(0, 0, 0, 0), 3))
+	row.add_child(streak_bar)
+
+	trash_label = Label.new()
+	trash_label.text = "CLEANED 0"
+	trash_label.add_theme_font_size_override("font_size", 15)
+	trash_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.75, 0.85))
+	trash_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	trash_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(trash_label)
+
 
 func _build_toasts() -> void:
 	toast_box = VBoxContainer.new()
@@ -278,7 +334,7 @@ func _build_start_banner() -> void:
 	v.add_child(sub)
 
 	var sub2 := Label.new()
-	sub2.text = "WASD move   •   Mouse look   •   E pick / place   •   V view   •   Meet your customers"
+	sub2.text = "WASD move   •   Mouse look   •   E pick / place / clean   •   V view   •   Chain placements for combo cash"
 	sub2.add_theme_font_size_override("font_size", 13)
 	sub2.modulate = Color(1, 1, 1, 0.55)
 	sub2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -290,16 +346,24 @@ func _build_start_banner() -> void:
 	tw.tween_callback(start_banner.hide)
 
 
+func _make_center() -> CenterContainer:
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
+	return center
+
+
 func _build_upgrades_panel() -> void:
+	var center := _make_center()
 	upgrades_panel = PanelContainer.new()
 	upgrades_panel.visible = false
-	upgrades_panel.set_anchors_preset(Control.PRESET_CENTER)
-	upgrades_panel.custom_minimum_size = Vector2(540, 590)
-	upgrades_panel.add_theme_stylebox_override("panel", _style(Color(0.05, 0.06, 0.09, 0.97), Color(0.35, 0.9, 0.5, 0.4), 18, 24, 2))
-	add_child(upgrades_panel)
+	upgrades_panel.custom_minimum_size = Vector2(560, 0)
+	upgrades_panel.add_theme_stylebox_override("panel", _style(Color(0.05, 0.06, 0.09, 0.97), Color(0.35, 0.9, 0.5, 0.4), 18, 18, 2))
+	center.add_child(upgrades_panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 9)
+	vbox.add_theme_constant_override("separation", 6)
 	upgrades_panel.add_child(vbox)
 
 	var title_row := HBoxContainer.new()
@@ -319,6 +383,12 @@ func _build_upgrades_panel() -> void:
 	upgrades_cash_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_row.add_child(upgrades_cash_label)
 
+	shop_stats_label = Label.new()
+	shop_stats_label.text = ""
+	shop_stats_label.add_theme_font_size_override("font_size", 12)
+	shop_stats_label.modulate = Color(1, 1, 1, 0.5)
+	vbox.add_child(shop_stats_label)
+
 	var move_title := Label.new()
 	move_title.text = "MOVEMENT & CARRY"
 	move_title.add_theme_font_size_override("font_size", 12)
@@ -329,6 +399,20 @@ func _build_upgrades_panel() -> void:
 	reach_btn = _make_row(vbox, "Interaction Distance", Color(0.4, 0.75, 1.0), _buy_reach)
 	cap_btn = _make_row(vbox, "Carrying Capacity", Color(1.0, 0.8, 0.3), _buy_cap)
 
+	var eco_title := Label.new()
+	eco_title.text = "STORE ECONOMY"
+	eco_title.add_theme_font_size_override("font_size", 12)
+	eco_title.modulate = Color(1, 1, 1, 0.55)
+	vbox.add_child(eco_title)
+
+	clean_btn = _make_row(vbox, "Cleaning Value", Color(0.55, 1.0, 0.75), _buy_clean)
+
+	var eco_hint := Label.new()
+	eco_hint.text = "Trash pays +35% per level  •  fast stocking pays up to x3"
+	eco_hint.add_theme_font_size_override("font_size", 11)
+	eco_hint.modulate = Color(1, 1, 1, 0.45)
+	vbox.add_child(eco_hint)
+
 	var pu_title := Label.new()
 	pu_title.text = "ACTIVE ABILITIES"
 	pu_title.add_theme_font_size_override("font_size", 12)
@@ -338,8 +422,13 @@ func _build_upgrades_panel() -> void:
 	var colors: Array[Color] = [
 		Color(1.0, 0.85, 0.35), Color(0.45, 1.0, 0.55), Color(0.4, 0.85, 1.0), Color(0.85, 0.55, 1.0)
 	]
+	var pu_grid := GridContainer.new()
+	pu_grid.columns = 2
+	pu_grid.add_theme_constant_override("h_separation", 8)
+	pu_grid.add_theme_constant_override("v_separation", 6)
+	vbox.add_child(pu_grid)
 	for i in 4:
-		var btn := _make_row(vbox, GameState.POWERUP_NAMES[i], colors[i], _buy_powerup.bind(i))
+		var btn := _make_row(pu_grid, GameState.POWERUP_NAMES[i], colors[i], _buy_powerup.bind(i), 250.0)
 		powerup_shop_btns.append(btn)
 
 	var hint := Label.new()
@@ -357,24 +446,24 @@ func _build_upgrades_panel() -> void:
 	vbox.add_child(close)
 
 
-func _make_row(parent: Control, text: String, accent: Color, action: Callable) -> Button:
+func _make_row(parent: Control, text: String, accent: Color, action: Callable, min_width: float = 0.0) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(0, 50)
+	btn.custom_minimum_size = Vector2(min_width, 42)
 	_button_styles(btn, accent)
 	btn.pressed.connect(action)
 	parent.add_child(btn)
 
 	var hbox := HBoxContainer.new()
 	hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	hbox.offset_left = 14
-	hbox.offset_right = -14
-	hbox.add_theme_constant_override("separation", 10)
+	hbox.offset_left = 12
+	hbox.offset_right = -12
+	hbox.add_theme_constant_override("separation", 8)
 	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(hbox)
 
 	var dot := ColorRect.new()
 	dot.color = accent
-	dot.custom_minimum_size = Vector2(10, 10)
+	dot.custom_minimum_size = Vector2(8, 8)
 	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hbox.add_child(dot)
@@ -383,7 +472,7 @@ func _make_row(parent: Control, text: String, accent: Color, action: Callable) -
 	name_lbl.name = "NameLabel"
 	name_lbl.text = text
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_lbl.add_theme_font_size_override("font_size", 15)
+	name_lbl.add_theme_font_size_override("font_size", 13)
 	name_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hbox.add_child(name_lbl)
@@ -391,7 +480,7 @@ func _make_row(parent: Control, text: String, accent: Color, action: Callable) -
 	var cost_lbl := Label.new()
 	cost_lbl.name = "CostLabel"
 	cost_lbl.text = ""
-	cost_lbl.add_theme_font_size_override("font_size", 15)
+	cost_lbl.add_theme_font_size_override("font_size", 13)
 	cost_lbl.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
 	cost_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	cost_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -401,12 +490,12 @@ func _make_row(parent: Control, text: String, accent: Color, action: Callable) -
 
 
 func _build_pause_panel() -> void:
+	var center := _make_center()
 	pause_panel = PanelContainer.new()
 	pause_panel.visible = false
-	pause_panel.set_anchors_preset(Control.PRESET_CENTER)
-	pause_panel.custom_minimum_size = Vector2(340, 330)
+	pause_panel.custom_minimum_size = Vector2(340, 0)
 	pause_panel.add_theme_stylebox_override("panel", _style(Color(0.05, 0.06, 0.09, 0.97), Color(0.35, 0.9, 0.5, 0.4), 18, 24, 2))
-	add_child(pause_panel)
+	center.add_child(pause_panel)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 12)
@@ -452,12 +541,12 @@ func _build_pause_panel() -> void:
 
 
 func _build_win_panel() -> void:
+	var center := _make_center()
 	win_panel = PanelContainer.new()
 	win_panel.visible = false
-	win_panel.set_anchors_preset(Control.PRESET_CENTER)
-	win_panel.custom_minimum_size = Vector2(460, 310)
+	win_panel.custom_minimum_size = Vector2(460, 0)
 	win_panel.add_theme_stylebox_override("panel", _style(Color(0.04, 0.14, 0.07, 0.97), Color(0.45, 1.0, 0.55, 0.6), 20, 30, 2))
-	add_child(win_panel)
+	center.add_child(win_panel)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 14)
@@ -655,6 +744,7 @@ func _update_joy(pos: Vector2) -> void:
 
 func _process(_delta: float) -> void:
 	_refresh_powerups()
+	_update_earnings()
 
 
 func _update_cash() -> void:
@@ -671,6 +761,44 @@ func _update_cash() -> void:
 		cash_label.scale = Vector2(1.18, 1.18)
 		_cash_tween = create_tween()
 		_cash_tween.tween_property(cash_label, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK)
+
+
+func _update_earnings() -> void:
+	if combo_label == null or streak_bar == null or trash_label == null:
+		return
+	var mult := GameState.streak_multiplier()
+	var active := mult > 1.0
+	if active != _combo_active:
+		_combo_active = active
+		combo_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35) if active else Color(1, 1, 1, 0.45))
+		streak_bar.modulate = Color(1, 1, 1, 1) if active else Color(1, 1, 1, 0.35)
+	if active:
+		combo_label.text = "COMBO x%.1f" % mult
+		streak_bar.value = clampf(GameState.streak_timer / GameState.STREAK_WINDOW, 0.0, 1.0) * 100.0
+	else:
+		combo_label.text = "COMBO x1.0"
+		streak_bar.value = 0.0
+	trash_label.text = "CLEANED %d" % GameState.cleaned
+
+
+func _on_streak_changed() -> void:
+	if combo_label == null:
+		return
+	var mult := GameState.streak_multiplier()
+	if mult > _last_mult:
+		if _combo_tween != null and _combo_tween.is_valid():
+			_combo_tween.kill()
+		combo_label.scale = Vector2(1.28, 1.28)
+		_combo_tween = create_tween()
+		_combo_tween.tween_property(combo_label, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK)
+	_last_mult = mult
+	_update_earnings()
+
+
+func _on_cleaned_changed() -> void:
+	_update_earnings()
+	if upgrades_panel != null and upgrades_panel.visible:
+		_update_shop()
 
 
 func _update_progress() -> void:
@@ -759,7 +887,7 @@ func _update_capacity() -> void:
 		top_item_label.text = ""
 	else:
 		var d: int = player.stack.back()
-		top_item_label.text = "Next: %s" % GameState.DEPARTMENT_NAMES[d]
+		top_item_label.text = "Next: %s  $%d" % [GameState.DEPARTMENT_NAMES[d], GameState.product_price(d)]
 		top_item_label.add_theme_color_override("font_color", GameState.DEPARTMENT_COLORS[d].lightened(0.25))
 
 
@@ -802,8 +930,13 @@ func _update_shop() -> void:
 	_set_shop_btn(speed_btn, "Movement Speed", GameState.speed_level, GameState.speed_cost())
 	_set_shop_btn(reach_btn, "Interaction Distance", GameState.reach_level, GameState.reach_cost())
 	_set_shop_btn(cap_btn, "Carrying Capacity", GameState.capacity_level, GameState.capacity_cost())
+	_set_shop_btn(clean_btn, "Cleaning Value", GameState.clean_level, GameState.clean_cost())
 	for i in 4:
 		_set_shop_btn(powerup_shop_btns[i], GameState.POWERUP_NAMES[i], GameState.powerup_levels[i], GameState.powerup_cost(i))
+	if shop_stats_label != null:
+		shop_stats_label.text = "Earned $%d   •   Trash cleaned %d   •   Combo x%.1f" % [
+			GameState.earned, GameState.cleaned, GameState.streak_multiplier()
+		]
 
 
 func _set_shop_btn(btn: Button, name_text: String, level: int, cost: int) -> void:
@@ -812,7 +945,7 @@ func _set_shop_btn(btn: Button, name_text: String, level: int, cost: int) -> voi
 	var hbox: HBoxContainer = btn.get_child(0)
 	var lbl: Label = hbox.get_node("NameLabel")
 	var cost_lbl: Label = hbox.get_node("CostLabel")
-	var lv_text := "MAX" if level >= 4 and cost < 0 else "Lv %d" % level
+	var lv_text := "MAX" if cost < 0 else "Lv %d" % level
 	lbl.text = "%s   (%s)" % [name_text, lv_text]
 	if cost < 0:
 		cost_lbl.text = "MAX"
@@ -850,6 +983,15 @@ func _buy_cap() -> void:
 	_update_shop()
 
 
+func _buy_clean() -> void:
+	if GameState.try_buy_clean():
+		Sfx.play("upgrade")
+		show_toast("Cleaning value upgraded!  Trash now pays more")
+	else:
+		Sfx.play("error", 0.8, -8.0)
+	_update_shop()
+
+
 func _buy_powerup(index: int) -> void:
 	if GameState.try_buy_powerup(index):
 		Sfx.play("upgrade")
@@ -863,6 +1005,8 @@ func _buy_powerup(index: int) -> void:
 func toggle_upgrades() -> void:
 	if GameState.won:
 		return
+	if start_banner != null:
+		start_banner.visible = false
 	if pause_panel.visible:
 		pause_panel.visible = false
 	upgrades_panel.visible = not upgrades_panel.visible
@@ -878,6 +1022,8 @@ func toggle_upgrades() -> void:
 func toggle_pause() -> void:
 	if GameState.won:
 		return
+	if start_banner != null:
+		start_banner.visible = false
 	if upgrades_panel.visible:
 		upgrades_panel.visible = false
 	var paused := not get_tree().paused
@@ -892,7 +1038,7 @@ func toggle_pause() -> void:
 func show_win() -> void:
 	get_tree().paused = true
 	win_panel.visible = true
-	win_stats_label.text = "All 852 products stocked!\nFinal level: 5  •  Clean Champion\nCash on hand: $%d\n\nThanks for playing." % GameState.cash
+	win_stats_label.text = "All 852 products stocked!\nFinal level: 5  •  Clean Champion\nTotal earned: $%d   •   Trash cleaned: %d\nCash on hand: $%d\n\nThanks for playing." % [GameState.earned, GameState.cleaned, GameState.cash]
 	player.lock_cursor(false)
 
 

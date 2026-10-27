@@ -1,20 +1,24 @@
 extends Node3D
 
 const TOTAL := 852
+const TrashScript := preload("res://scripts/trash.gd")
 
 var products_root: Node3D
 var people_root: Node3D
+var trash_root: Node3D
 var shelves: Array[Shelf] = []
 var all_products: Array[Product] = []
 var customers: Array[Person] = []
 var player: Player
 var ui: CanvasLayer
 var floor_products: Array[Product] = []
+var trash_pieces: Array = []
 
 var _rng := RandomNumberGenerator.new()
 var _customer_paths: Array = []
 var _customer_count: int = 0
 var _checkout_beep: float = 7.0
+var _trash_respawn: float = 18.0
 var _bill_green: StandardMaterial3D
 var _bill_cream: StandardMaterial3D
 
@@ -30,6 +34,7 @@ func _ready() -> void:
 	_spawn_products()
 	_build_people()
 	_build_cash_pickups()
+	_build_trash()
 	_setup_ui()
 	GameState.level_changed.connect(_on_level_changed)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -50,10 +55,17 @@ func _capture_and_quit() -> void:
 func _process(delta: float) -> void:
 	if GameState.won or get_tree().paused:
 		return
+	GameState.tick_economy(delta)
 	_checkout_beep -= delta
 	if _checkout_beep <= 0.0:
 		_checkout_beep = _rng.randf_range(5.0, 13.0)
 		Sfx.play("beep", _rng.randf_range(0.92, 1.1), -20.0)
+	_trash_respawn -= delta
+	if _trash_respawn <= 0.0:
+		_trash_respawn = _rng.randf_range(15.0, 24.0)
+		_prune_trash()
+		if trash_pieces.size() < 40:
+			_spawn_trash_piece()
 
 
 func _setup_environment() -> void:
@@ -1109,6 +1121,66 @@ func _on_cash_collected(pos: Vector3, value: int) -> void:
 	_spawn_float_text(pos + Vector3(0, 0.35, 0), "+$%d" % value, Color(1.0, 0.88, 0.4))
 
 
+func _build_trash() -> void:
+	trash_root = Node3D.new()
+	trash_root.name = "Trash"
+	add_child(trash_root)
+	for i in 34:
+		_spawn_trash_piece()
+
+
+func _prune_trash() -> void:
+	for i in range(trash_pieces.size() - 1, -1, -1):
+		var t = trash_pieces[i]
+		if not is_instance_valid(t) or t.is_queued_for_deletion() or t.is_collected():
+			trash_pieces.remove_at(i)
+
+
+func _spawn_trash_piece() -> void:
+	if trash_root == null:
+		return
+	var pos := Vector3.ZERO
+	var found := false
+	for attempt in 40:
+		pos = _random_floor_position()
+		if player != null and is_instance_valid(player) and pos.distance_to(player.global_position) < 3.5:
+			continue
+		var blocked := false
+		for other in trash_pieces:
+			if is_instance_valid(other) and pos.distance_to(other.global_position) < 1.4:
+				blocked = true
+				break
+		if blocked:
+			continue
+		for p in floor_products:
+			if is_instance_valid(p) and pos.distance_to(p.global_position) < 0.55:
+				blocked = true
+				break
+		if blocked:
+			continue
+		found = true
+		break
+	if not found:
+		return
+	var piece := TrashScript.new()
+	piece.setup(_rng.randi_range(2, 4), _rng)
+	piece.position = Vector3(pos.x, 0, pos.z)
+	piece.rotation.y = _rng.randf_range(0.0, TAU)
+	piece.cleaned.connect(_on_trash_cleaned)
+	trash_root.add_child(piece)
+	trash_pieces.append(piece)
+
+
+func _on_trash_cleaned(pos: Vector3, base: int) -> void:
+	var payout := GameState.trash_payout(base)
+	GameState.add_cash(payout)
+	GameState.add_cleaned(1)
+	Sfx.play("cash", randf_range(1.0, 1.2), -2.0)
+	_spawn_float_text(pos + Vector3(0, 0.55, 0), "+$%d" % payout, Color(0.55, 1.0, 0.75))
+	_spawn_money_bill(pos + Vector3(0, 0.3, 0))
+	_prune_trash()
+
+
 func _spawn_extra_customer() -> void:
 	if _customer_paths.is_empty():
 		return
@@ -1180,11 +1252,19 @@ func on_product_picked(product: Product, _p: Player) -> void:
 
 func on_product_placed(shelf: Shelf, dept: int) -> void:
 	shelf.place_product(GameState.DEPARTMENT_COLORS[dept])
-	GameState.add_cash(1)
+	var payout := GameState.register_placement(dept)
+	GameState.add_cash(payout)
 	GameState.add_placed(1)
 	Sfx.play("place", randf_range(0.95, 1.08))
-	_spawn_float_text(shelf.global_position + Vector3(0, 2.1, 0), "+$1", Color(0.55, 1.0, 0.6))
+	var mult := GameState.streak_multiplier()
+	var cash_text := "+$%d" % payout
+	if mult > 1.0:
+		cash_text += "  x%.1f" % mult
+	var cash_color := Color(0.55, 1.0, 0.6) if mult <= 1.0 else Color(1.0, 0.9, 0.4)
+	_spawn_float_text(shelf.global_position + Vector3(0, 2.1, 0), cash_text, cash_color)
 	_spawn_money_bill(shelf.global_position + Vector3(_rng.randf_range(-0.8, 0.8), 1.9, _rng.randf_range(-0.2, 0.2)))
+	if GameState.streak == 6:
+		ui.show_toast("COMBO x3.0  •  chain bonus maxed", Color(1.0, 0.88, 0.4))
 	if GameState.placed % 50 == 0 and GameState.placed < TOTAL:
 		ui.show_toast("%d / %d stocked!" % [GameState.placed, GameState.TOTAL_PRODUCTS], Color(0.55, 1.0, 0.6))
 		Sfx.play("milestone")
