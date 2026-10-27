@@ -9,19 +9,26 @@ const MOUSE_SENS := 0.0022
 const GRAVITY := 18.0
 const TP_CAM_DIST := 2.7
 const BODY_SCALE := 1.5
-const TOOL_SCALE := 0.68
+const TOOL_SCALE := 0.95
 const ARM_L_SCALE := 1.0
 # Zero reference for the spin of the hand about the handle. The palm ends up square
 # onto the grip and ARM_L_ROLL turns it so the forearm leaves toward the lower left.
 const ARM_L_FORE := Vector3(-0.35, -0.55, 0.76)
 const ARM_L_ROLL := -0.75
+# Point of the grabber the hand is anchored to, in tool space. The handle's true
+# centre sits slightly further along the palm, see GRIP_CENTER_SHIFT.
 const ARM_L_GRIP := Vector3(0.0422, 0.0039, 0.0)
 const ARM_R_SCALE := 1.0
 const ARM_R_FORE := Vector3(0.56, -0.60, 0.57)
 const ARM_R_GRIP := Vector3(0.0, -0.01, 0.0)
 const ARM_R_ROLL := 0.0
-# Grip cross-section radius of the grabber, measured from the mesh in tool space.
-const GRIP_RADIUS := 0.026
+# Grip cross-section of the grabber, measured from the mesh in tool space. The grip
+# is an oval: deeper front-to-back than it is wide, which is why a circular wrap
+# leaves the palm buried in it.
+const GRIP_HALF_DEPTH := 0.0417
+const GRIP_HALF_WIDTH := 0.0303
+# The baked grip point sits on the back half of the oval, this far off its axis.
+const GRIP_CENTER_SHIFT := 0.0082
 # Distance from the wrist/knuckle midline out to the skin of the palm.
 const PALM_OFFSET := 0.018
 # Distance from a finger bone to the skin, so the flesh closes on the handle.
@@ -169,7 +176,7 @@ func _build_viewmodel() -> void:
 
 	_picker = Node3D.new()
 	_viewmodel.add_child(_picker)
-	var grip := Vector3(-0.2854, -0.3054, -0.62)
+	var grip := Vector3(-0.3061, -0.3143, -0.62)
 	var tool_axis := Vector3(0.244, 0.157, -0.957).normalized()
 	var tool_lift := (Vector3.UP - tool_axis * tool_axis.dot(Vector3.UP)).normalized()
 	var tool_side := tool_axis.cross(tool_lift).normalized()
@@ -228,15 +235,16 @@ func _build_viewmodel() -> void:
 			_curl_fingers(_arms_l_skel, "l", rho)
 			_arms_l_anchor = _grip_anchor(_arms_l_skel, "l", ARM_L_SCALE, grip_bar,
 				ARM_L_FORE, ARM_L_ROLL, _tool.transform * ARM_L_GRIP, rho)
-			_pose_thumb(_arms_l_skel, "l", rho)
+			# The rig's rest pose already folds the thumb across the fingers, which is
+			# exactly where a thumb sits on a grip. Posing it only drags the base off
+			# the far side and stretches the webbing into a fin.
 			_place_arm_l()
-			_add_sleeve_l()
 
 	var fill_light := OmniLight3D.new()
 	fill_light.omni_range = 1.9
-	fill_light.light_energy = 0.55
+	fill_light.light_energy = 1.40
 	fill_light.light_color = Color(1.0, 0.95, 0.88)
-	fill_light.position = Vector3(0.10, 0.22, 0.30)
+	fill_light.position = Vector3(-0.28, 0.16, 0.18)
 	_picker.add_child(fill_light)
 
 	# RIGHT ARM (Holding trash bag knot)
@@ -263,7 +271,7 @@ func _build_viewmodel() -> void:
 			var bag_bar := (Vector3.UP - Vector3.RIGHT * Vector3.RIGHT.dot(Vector3.UP)).normalized()
 			_arms_r_anchor = _arm_anchor(_arms_r_skel, "r", ARM_R_SCALE, bag_bar,
 				ARM_R_FORE, ARM_R_GRIP, ARM_R_ROLL)
-			_pose_thumb(_arms_r_skel, "r", 0.030)
+			_pose_thumb(_arms_r_skel, "r", 0.030, 0.0)
 			_place_arm_r()
 
 	var fill_light_r := OmniLight3D.new()
@@ -493,6 +501,9 @@ func _make_arms_material() -> StandardMaterial3D:
 		skin_mat.metallic = 0.0
 		skin_mat.roughness = 0.75
 	skin_mat.metallic_specular = 0.40
+	# The ceiling lights are bright enough to wash the pale skin texture out. Pulling
+	# the albedo down keeps the hand readable instead of a white silhouette.
+	skin_mat.albedo_color = Color(0.88, 0.83, 0.80)
 	return skin_mat
 
 
@@ -577,7 +588,10 @@ func _grip_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, f
 	var dst := Basis(e1, f, e1.cross(f))
 	var r := Basis(e1, roll) * dst * src.transposed()
 	var rs := Basis(r.x * s, r.y * s, r.z * s)
-	return Transform3D(rs * hrest.basis, target + rs * (w - _grip_center(skel, side, rho)))
+	# The hand centre has to land on the handle's axis, not on the baked grip point,
+	# so nudge the target out along the palm by the measured offset.
+	var aim := target + rs * _palm_normal(skel, side) * _grip_shift(side)
+	return Transform3D(rs * hrest.basis, aim + rs * (w - _grip_center(skel, side, rho)))
 
 
 func _palm_normal(skel: Skeleton3D, side: String) -> Vector3:
@@ -601,17 +615,56 @@ func _palm_normal(skel: Skeleton3D, side: String) -> Vector3:
 	return n
 
 
+func _grip_profile(side: String, rho: float) -> Vector2:
+	# Cross-section of whatever the hand closes on, as (half-depth along the palm
+	# normal, half-width across it) in skeleton units. The grabber's grip is a real
+	# oval - deeper front-to-back than it is wide - so wrapping a circle buries the
+	# palm inside the handle. The bag knot the right hand holds is round.
+	if side == "l":
+		return Vector2(GRIP_HALF_DEPTH * TOOL_SCALE, GRIP_HALF_WIDTH * TOOL_SCALE)
+	var r := maxf(rho - FINGER_OFFSET, 0.004)
+	return Vector2(r, r)
+
+
 func _grip_rho() -> float:
-	# Radius of the arc the fingers close on: the handle plus the finger's flesh.
-	return GRIP_RADIUS * TOOL_SCALE + FINGER_OFFSET
+	# How far the handle pushes the palm out along the long side of the oval.
+	return GRIP_HALF_DEPTH * TOOL_SCALE + FINGER_OFFSET
+
+
+func _grip_shift(side: String) -> float:
+	return GRIP_CENTER_SHIFT * TOOL_SCALE if side == "l" else 0.0
+
+
+func _oval_pt(a: float, b: float, th: float) -> Vector2:
+	return Vector2(a * cos(th), b * sin(th))
+
+
+func _oval_dist(a: float, b: float, th: float, k: Vector2) -> float:
+	return (_oval_pt(a, b, th) - k).length()
+
+
+func _oval_step(a: float, b: float, th: float, chord: float, sgn: float) -> float:
+	# How far along the oval a phalanx of this length reaches from `th`. The chord
+	# grows with the angle, so a bisection is enough.
+	var lo := 0.0
+	var hi := PI
+	for i in 24:
+		var mid := (lo + hi) * 0.5
+		if (_oval_pt(a, b, th + sgn * mid) - _oval_pt(a, b, th)).length() < chord:
+			lo = mid
+		else:
+			hi = mid
+	return (lo + hi) * 0.5
 
 
 func _curl_fingers(skel: Skeleton3D, side: String, rho: float) -> void:
 	# Wrap every finger around the handle. The knuckle sits behind the palm skin, so
-	# the phalanx leaves the knuckle along the tangent to a circle of radius rho
-	# (handle + finger flesh) and each joint turns so the next phalanx stays on it.
-	# That is the polygon a finger really makes around a cylinder, so the flesh meets
-	# the handle all the way round instead of digging in at the knuckle.
+	# the phalanx leaves the knuckle towards the oval of the handle plus finger
+	# flesh, and each joint turns so the next phalanx stays on that oval. That is
+	# the polygon a finger really makes around a grip, so the flesh meets the handle
+	# all the way round instead of digging in at the knuckle. The oval matters: the
+	# grabber's grip is nearly twice as deep as it is wide, and a circular wrap
+	# leaves the palm buried in it.
 	var ib := skel.find_bone("index_01_" + side)
 	var pb := skel.find_bone("pinky_01_" + side)
 	if ib < 0 or pb < 0:
@@ -624,62 +677,102 @@ func _curl_fingers(skel: Skeleton3D, side: String, rho: float) -> void:
 	if hinge.cross(fwd).dot(palm) < 0.0:
 		hinge = -hinge
 	var center := _grip_center(skel, side, rho)
+	var prof := _grip_profile(side, rho)
+	var u := palm
+	var w := hinge.cross(u).normalized()
+	var a := prof.x + FINGER_OFFSET
+	var b := prof.y + FINGER_OFFSET
 	for f in ["index", "middle", "ring", "pinky"]:
 		var bones: Array[int] = []
 		var pts: Array[Vector3] = []
 		for j in 3:
-			var b := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
-			if b < 0:
+			var bj := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
+			if bj < 0:
 				break
-			bones.append(b)
-			pts.append(_bone_rest_in_skel(skel, b).origin)
+			bones.append(bj)
+			pts.append(_bone_rest_in_skel(skel, bj).origin)
 		if bones.size() < 3:
 			continue
 		var l1 := (pts[1] - pts[0]).length()
 		var l2 := (pts[2] - pts[1]).length()
-		var v := center - pts[0]
-		v -= hinge * hinge.dot(v)
-		var d0 := v.length()
-		if d0 <= rho + 0.001:
-			continue
+		# The distal phalanx has no child to measure, but it is the shortest of the
+		# three in every hand, and the wrap only needs its length to space the last
+		# joint along the oval.
+		var l3 := l2 * 0.75
 		var rest := pts[1] - pts[0]
 		rest = (rest - hinge * hinge.dot(rest)).normalized()
-		var beta := asin(clampf(rho / d0, 0.0, 1.0))
-		var n_hat := v.normalized()
-		var t_hat := hinge.cross(n_hat).normalized()
-		var cand_a := (n_hat * cos(beta) + t_hat * sin(beta)).normalized()
-		var cand_b := (n_hat * cos(beta) - t_hat * sin(beta)).normalized()
-		# Two tangents leave the knuckle; take the one the finger already points down.
-		var tang := cand_a if cand_a.dot(rest) > cand_b.dot(rest) else cand_b
-		var half1 := maxf(atan2(l1 - sqrt(d0 * d0 - rho * rho), rho), 0.0)
-		var half2 := maxf(atan2(l2, rho) - half1, 0.0)
-		var want: Array[Vector3] = [
-			tang,
-			Basis(hinge, 2.0 * half1) * tang,
-			Basis(hinge, 2.0 * (half1 + half2)) * tang,
-		]
+		var rest2 := Vector2(rest.dot(u), rest.dot(w)).normalized()
+		var k := Vector2((pts[0] - center).dot(u), (pts[0] - center).dot(w))
+		if k.length() <= 0.004:
+			continue
+		# First joint: the point of the oval one proximal phalanx away from the
+		# knuckle. A chord that short cuts the oval twice, so keep the point that
+		# continues the finger's rest direction.
+		var th1 := 0.0
+		var best := -2.0
+		var found := false
+		var prev := _oval_dist(a, b, 0.0, k) - l1
+		var steps := 180
+		for i in range(1, steps + 1):
+			var th := TAU * float(i) / float(steps)
+			var cur := _oval_dist(a, b, th, k) - l1
+			if (prev < 0.0) != (cur < 0.0):
+				var lo := TAU * float(i - 1) / float(steps)
+				var hi := th
+				for j in 24:
+					var mid := (lo + hi) * 0.5
+					if (_oval_dist(a, b, mid, k) - l1 < 0.0) == (prev < 0.0):
+						lo = mid
+					else:
+						hi = mid
+				var root := (lo + hi) * 0.5
+				var dir := _oval_pt(a, b, root) - k
+				if dir.length() > 0.0001:
+					var dd := dir.normalized().dot(rest2)
+					if dd > best:
+						best = dd
+						th1 = root
+						found = true
+			prev = cur
+		if not found:
+			continue
+		# Carry on around the oval the way the finger was already heading, i.e. away
+		# from the knuckle.
+		var tangent := Vector2(-a * sin(th1), b * cos(th1)).normalized()
+		var sgn := 1.0 if tangent.dot(_oval_pt(a, b, th1) - k) > 0.0 else -1.0
+		var arc: Array[Vector2] = [_oval_pt(a, b, th1)]
+		var th := th1
+		for chord in [l2, l3]:
+			th += sgn * _oval_step(a, b, th, chord, sgn)
+			arc.append(_oval_pt(a, b, th))
+		var want: Array[Vector3] = []
+		var from := pts[0]
+		for q in arc:
+			var p := center + u * q.x + w * q.y
+			want.append((p - from).normalized())
+			from = p
 		# Turns accumulate down the chain, so each bone only needs the change in its
 		# absolute angle. Subtracting the previous angle also cancels the bend the rig
 		# already has in its rest pose, which the ring finger has a lot of.
-		var prev := 0.0
+		var prev_phi := 0.0
 		for j in 3:
-			var b: int = bones[j]
-			var dir := (_bone_rest_in_skel(skel, b).basis.y - hinge * hinge.dot(_bone_rest_in_skel(skel, b).basis.y)).normalized()
+			var bj: int = bones[j]
+			var dir := (_bone_rest_in_skel(skel, bj).basis.y - hinge * hinge.dot(_bone_rest_in_skel(skel, bj).basis.y)).normalized()
 			var phi := atan2(hinge.dot(dir.cross(want[j])), dir.dot(want[j]))
-			_set_bone_turn(skel, b, _bone_rest_in_skel(skel, b).basis.inverse() * hinge, phi - prev)
-			prev = phi
+			_set_bone_turn(skel, bj, _bone_rest_in_skel(skel, bj).basis.inverse() * hinge, phi - prev_phi)
+			prev_phi = phi
 	skel.force_update_all_bone_transforms()
 
 
 func _grip_center(skel: Skeleton3D, side: String, rho: float) -> Vector3:
-	# The handle lies against the palm skin, and the palm skin sits PALM_OFFSET out
-	# from the knuckle line, so the axis is one handle radius beyond that.
+	# The handle's back face sits on the palm skin, and the palm skin sits PALM_OFFSET
+	# out from the knuckle line, so the axis is one handle half-depth beyond that.
 	var ib := skel.find_bone("index_01_" + side)
 	var pb := skel.find_bone("pinky_01_" + side)
 	if ib < 0 or pb < 0:
 		return Vector3.ZERO
 	var knuckles := (_bone_rest_in_skel(skel, ib).origin + _bone_rest_in_skel(skel, pb).origin) * 0.5
-	return knuckles + _palm_normal(skel, side) * (PALM_OFFSET + rho - FINGER_OFFSET)
+	return knuckles + _palm_normal(skel, side) * (PALM_OFFSET + _grip_profile(side, rho).x)
 
 
 func _tunnel_center(skel: Skeleton3D, side: String) -> Vector3:
@@ -732,7 +825,7 @@ func _bend_bone(skel: Skeleton3D, b: int, axis: Vector3, ang: float) -> void:
 	skel.force_update_all_bone_transforms()
 
 
-func _pose_thumb(skel: Skeleton3D, side: String, rho: float) -> void:
+func _pose_thumb(skel: Skeleton3D, side: String, rho: float, around: float, along: float = 0.045) -> void:
 	# The rest pose has the thumb folded across the palm. Stand it up along the handle
 	# so it lies against the near face, then flex the last two joints so the pad
 	# rolls onto the grip instead of the thumb spinning around it.
@@ -753,9 +846,17 @@ func _pose_thumb(skel: Skeleton3D, side: String, rho: float) -> void:
 	fwd = (fwd - up * up.dot(fwd)).normalized()
 	# The thumb root sits back at the wrist, so pointing it along the handle leaves it
 	# floating beside the grip. Aim it at the handle and let the joints take up the
-	# extra length, which is what puts the pad on the grip.
+	# extra length, which is what puts the pad on the grip. `around` carries the pad
+	# from the palm face towards the side of the handle the camera can see.
+	var around_side := up.cross(palm).normalized()
+	var radial := (-palm * cos(around) + around_side * sin(around)).normalized()
 	var l3 := (_bone_rest_in_skel(skel, t3).origin - _bone_rest_in_skel(skel, t2).origin).length()
-	var far := center + up * 0.045 - palm * (rho + 0.004)
+	# The pad has to rest on the oval, so measure how far the surface is along the
+	# direction the pad comes from instead of assuming a circle.
+	var prof := _grip_profile(side, rho)
+	var ra := Vector2(radial.dot(palm), radial.dot(up.cross(palm).normalized()))
+	var reach := 1.0 / sqrt(pow(ra.x / (prof.x + FINGER_OFFSET), 2.0) + pow(ra.y / (prof.y + FINGER_OFFSET), 2.0))
+	var far := center + up * along + radial * (reach + 0.004)
 	var aim0 := (far - base).normalized()
 	# Two things are unknown - where the metacarpal points and how hard the joints
 	# fold - and the thumb is long enough to overshoot the handle if only one of them
@@ -784,34 +885,6 @@ func _pose_thumb(skel: Skeleton3D, side: String, rho: float) -> void:
 	skel.force_update_all_bone_transforms()
 	_bend_bone(skel, t2, fwd, best)
 	_bend_bone(skel, t3, fwd, best * 1.3)
-
-
-func _add_sleeve_l() -> void:
-	# The imported arm is a cut tube, so from this angle its open end shows up as a
-	# hollow ring. A fabric cuff covers it and, while it is there, hides how much
-	# wider than the hand the rig authored the forearm.
-	var w := _bone_rest_in_skel(_arms_l_skel, _arms_l_skel.find_bone("hand_l")).origin
-	var e := _bone_rest_in_skel(_arms_l_skel, _arms_l_skel.find_bone("lowerarm_l")).origin
-	var dir := (e - w).normalized()
-	var ref := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.9 else Vector3.RIGHT
-	var bx := (ref - dir * dir.dot(ref)).normalized()
-	var cuff := CylinderMesh.new()
-	cuff.top_radius = 0.062
-	cuff.bottom_radius = 0.034
-	cuff.height = 0.325
-	cuff.radial_segments = 28
-	cuff.rings = 1
-	var mi := MeshInstance3D.new()
-	mi.mesh = cuff
-	mi.transform = Transform3D(Basis(bx, dir, bx.cross(dir)), w + dir * 0.2775)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.085, 0.095, 0.135)
-	mat.roughness = 1.0
-	mat.metallic = 0.0
-	mat.metallic_specular = 0.15
-	mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_arms_l_skel.add_child(mi)
 
 
 func _place_arm_l() -> void:
