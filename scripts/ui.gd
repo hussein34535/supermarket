@@ -334,7 +334,7 @@ func _build_start_banner() -> void:
 	v.add_child(sub)
 
 	var sub2 := Label.new()
-	sub2.text = "WASD move   •   Mouse look   •   E pick / place / clean   •   V view   •   Chain placements for combo cash"
+	sub2.text = "WASD move   •   Space jump   •   Ctrl crouch   •   E hand / grabber   •   V view   •   Chain placements for combo cash"
 	sub2.add_theme_font_size_override("font_size", 13)
 	sub2.modulate = Color(1, 1, 1, 0.55)
 	sub2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

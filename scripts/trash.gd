@@ -9,6 +9,8 @@ var kind: int = 0
 var _visual: Node3D
 var _mark: Label3D
 var _collected: bool = false
+var _kick_lock: bool = false
+var _kick_tween: Tween
 
 
 func setup(amount: int, rng: RandomNumberGenerator) -> void:
@@ -149,10 +151,54 @@ func is_collected() -> bool:
 	return _collected
 
 
+func kick(dir: Vector3, strength: float = 1.0) -> void:
+	if _collected or _kick_lock:
+		return
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	if flat.length() < 0.01:
+		return
+	flat = flat.normalized()
+	var start := global_position
+	start.y = 0.0
+	var target := start + flat * (0.48 * clampf(strength, 0.4, 1.6))
+	target.x = clampf(target.x, -19.5, 19.5)
+	target.z = clampf(target.z, -13.5, 13.5)
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		start + Vector3(0, 0.16, 0), target + Vector3(0, 0.16, 0), 1 | 8 | 16)
+	query.exclude = [get_rid()]
+	var hit := space.intersect_ray(query)
+	if not hit.is_empty():
+		var hp: Vector3 = hit.position
+		var back := start - hp
+		back.y = 0.0
+		if back.length() > 0.001:
+			target = hp + back.normalized() * 0.22
+			target.y = 0.0
+	if target.distance_to(start) < 0.05:
+		return
+	_kick_lock = true
+	_kick_tween = create_tween()
+	_kick_tween.set_parallel(true)
+	_kick_tween.tween_method(func(t: float) -> void:
+		var p := start.lerp(target, t)
+		p.y = sin(t * PI) * 0.05 * strength
+		global_position = p
+	, 0.0, 1.0, 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_kick_tween.tween_property(self, "rotation:y", rotation.y + 0.9, 0.24)
+	_kick_tween.chain().tween_callback(func() -> void:
+		global_position.y = 0.0
+		_kick_lock = false
+	)
+
+
 func collect(target: Vector3) -> void:
 	if _collected:
 		return
 	_collected = true
+	if _kick_tween != null and _kick_tween.is_valid():
+		_kick_tween.kill()
+	global_position.y = 0.0
 	collision_layer = 0
 	cleaned.emit(global_position, value)
 	if _visual == null:

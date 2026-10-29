@@ -9,10 +9,23 @@ const TrashScript := preload("res://scripts/trash.gd")
 
 const MOUSE_SENS := 0.0022
 const GRAVITY := 18.0
+const JUMP_VELOCITY := 6.2
+const STAND_HEIGHT := 1.7
+const CROUCH_HEIGHT := 1.05
+const CROUCH_CAM_Y := 1.02
+const CROUCH_SPEED_MULT := 0.55
 const TP_CAM_DIST := 2.7
 const BODY_SCALE := 1.5
 const TOOL_SCALE := 0.95
+const TOOL_REACH := 1.65
+const TOOL_PULL_MAX := 0.82
 const ARM_L_SCALE := 1.0
+# Resting pose of the empty hand. The grabber hand is curled around the handle;
+# this second arm keeps the rig's open hand and reaches forward when products are
+# being picked up or placed.
+const HAND_OPEN_TARGET := Vector3(-0.34, -0.42, -0.62)
+const HAND_OPEN_BAR := Vector3(-1.0, 0.2, 0.0)
+const HAND_OPEN_FORE := Vector3(-0.52, -0.55, 0.65)
 # Zero reference for the spin of the hand about the handle. The palm ends up square
 # onto the grip and ARM_L_ROLL turns it so the forearm leaves toward the lower left.
 const ARM_L_FORE := Vector3(-0.35, -0.55, 0.76)
@@ -56,16 +69,23 @@ var _rng := RandomNumberGenerator.new()
 
 var _viewmodel: Node3D
 var _picker: Node3D
+var _grabber_pivot: Node3D
+var _open_pivot: Node3D
 var _tool: Node3D
 var _grab_material: ShaderMaterial
 var _bag_pivot: Node3D
 var _bag_body: Node3D
 var _hand_l: Node3D
+var _hand_open: Node3D
 var _arm_r: Node3D
 var _arms_l: Node3D
 var _arms_l_skel: Skeleton3D
 var _arms_l_bone: int = -1
 var _arms_l_anchor := Transform3D.IDENTITY
+var _arms_open: Node3D
+var _arms_open_skel: Skeleton3D
+var _arms_open_bone: int = -1
+var _arms_open_anchor := Transform3D.IDENTITY
 var _arms_r: Node3D
 var _arms_r_skel: Skeleton3D
 var _arms_r_bone: int = -1
@@ -75,6 +95,7 @@ var _hand_wrist := Vector3.ZERO
 var _hand_bar := Vector3.UP
 var _hand_right := Vector3.RIGHT
 var _grab_anim: float = 0.0
+var _hand_reach: float = 0.0
 var _bag_kick: float = 0.0
 var _view_t: float = 0.0
 var _prev_yaw: float = 0.0
@@ -94,31 +115,47 @@ var _body_lean: float = 0.0
 var _body_roll: float = 0.0
 var _cam_cast: RayCast3D
 
+var _capsule: CapsuleShape3D
+var _col: CollisionShape3D
+var _crouching: bool = false
+var _cam_height: float = 1.55
+var _grabber_mode: float = 0.0
+var _ray_trash: bool = false
+var _tool_probe: RayCast3D
+var _tool_probe_side: RayCast3D
+var _tool_pull: float = 0.0
+var _kick_cd: float = 0.0
+var _kick_shape: SphereShape3D
+var _kick_query: PhysicsShapeQueryParameters3D
+
 
 func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 1
 	_base_cam_y = 1.55
+	_cam_height = _base_cam_y
 	_rng.randomize()
 
 	var col := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.35
-	capsule.height = 1.7
+	capsule.height = STAND_HEIGHT
 	col.shape = capsule
-	col.position.y = 0.85
+	col.position.y = STAND_HEIGHT * 0.5
+	_col = col
+	_capsule = capsule
 	add_child(col)
 
 	camera = Camera3D.new()
-	camera.position.y = _base_cam_y
+	camera.position.y = _cam_height
 	camera.fov = 70.0
 	add_child(camera)
 	camera.current = true
 
 	ray = RayCast3D.new()
 	ray.target_position = Vector3(0, 0, -GameState.interact_distance())
-	# Layer 1 = world / shelves / products, layer 8 = collectable trash.
-	ray.collision_mask = 1 | 8
+	# Layer 1 = world / shelves, layer 8 = collectable trash, layer 16 = loose goods.
+	ray.collision_mask = 1 | 8 | 16
 	ray.enabled = true
 	camera.add_child(ray)
 
@@ -129,6 +166,30 @@ func _ready() -> void:
 	_cam_cast.collision_mask = 1
 	_cam_cast.enabled = true
 	add_child(_cam_cast)
+
+	# Probe for the long grabber head. It watches solid geometry and loose goods, so
+	# walls, shelves and products push the tool back, but the trash it is aiming for
+	# never does.
+	_tool_probe = RayCast3D.new()
+	_tool_probe.target_position = Vector3(0, -0.30, -2.0)
+	_tool_probe.collision_mask = 1 | 16
+	_tool_probe.enabled = true
+	camera.add_child(_tool_probe)
+
+	_tool_probe_side = RayCast3D.new()
+	_tool_probe_side.position = Vector3(-0.22, 0.0, 0.0)
+	_tool_probe_side.target_position = Vector3(0, -0.30, -2.0)
+	_tool_probe_side.collision_mask = 1 | 16
+	_tool_probe_side.enabled = true
+	camera.add_child(_tool_probe_side)
+
+	_kick_shape = SphereShape3D.new()
+	_kick_shape.radius = 0.40
+	_kick_query = PhysicsShapeQueryParameters3D.new()
+	_kick_query.shape = _kick_shape
+	_kick_query.collision_mask = 16 | 8
+	_kick_query.collide_with_bodies = true
+	_kick_query.collide_with_areas = false
 
 	hand_light = OmniLight3D.new()
 	hand_light.omni_range = 5.0
@@ -179,6 +240,14 @@ func _build_viewmodel() -> void:
 
 	_picker = Node3D.new()
 	_viewmodel.add_child(_picker)
+	# The grabber and the hand that holds it live on one pivot so they can be
+	# lowered out of view together when the bare hand is doing the work.
+	_grabber_pivot = Node3D.new()
+	_grabber_pivot.name = "GrabberPivot"
+	_picker.add_child(_grabber_pivot)
+	_open_pivot = Node3D.new()
+	_open_pivot.name = "OpenHandPivot"
+	_picker.add_child(_open_pivot)
 	var grip := Vector3(-0.3061, -0.3143, -0.62)
 	var tool_axis := Vector3(0.244, 0.157, -0.957).normalized()
 	var tool_lift := (Vector3.UP - tool_axis * tool_axis.dot(Vector3.UP)).normalized()
@@ -190,7 +259,7 @@ func _build_viewmodel() -> void:
 	_tool.position = grip
 	_tool.transform.basis = Basis(tool_axis, tool_lift, tool_side)
 	_tool.scale = Vector3.ONE * TOOL_SCALE
-	_picker.add_child(_tool)
+	_grabber_pivot.add_child(_tool)
 	_tool.add_child(grabber)
 	grabber.position = Vector3(0.47, -0.09, 0.0)
 	var grab_shader: Shader = load("res://assets/shaders/grabber.gdshader")
@@ -222,7 +291,7 @@ func _build_viewmodel() -> void:
 	# LEFT ARM (Holding grabber pistol grip)
 	_hand_l = Node3D.new()
 	_hand_l.name = "HandL"
-	_picker.add_child(_hand_l)
+	_grabber_pivot.add_child(_hand_l)
 
 	if arms_scene != null:
 		_arms_l = arms_scene.instantiate()
@@ -242,6 +311,27 @@ func _build_viewmodel() -> void:
 			# exactly where a thumb sits on a grip. Posing it only drags the base off
 			# the far side and stretches the webbing into a fin.
 			_place_arm_l()
+
+	# BARE LEFT ARM (open hand for products and shelves)
+	_hand_open = Node3D.new()
+	_hand_open.name = "HandOpen"
+	_open_pivot.add_child(_hand_open)
+
+	if arms_scene != null:
+		_arms_open = arms_scene.instantiate()
+		_hand_open.add_child(_arms_open)
+		var mi_o := _find_node_of_class(_arms_open, "MeshInstance3D") as MeshInstance3D
+		_arms_open_skel = _find_node_of_class(_arms_open, "Skeleton3D") as Skeleton3D
+		if mi_o != null and _arms_open_skel != null:
+			mi_o.mesh = load("res://assets/models/arm_left_mesh.res")
+			mi_o.material_override = skin_mat
+			mi_o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_arms_open_bone = _arms_open_skel.find_bone("hand_l")
+			_open_fingers(_arms_open_skel, "l")
+			_arms_open_skel.force_update_all_bone_transforms()
+			_arms_open_anchor = _arm_anchor(_arms_open_skel, "l", ARM_L_SCALE,
+				HAND_OPEN_BAR, HAND_OPEN_FORE, HAND_OPEN_TARGET, 0.0)
+			_place_open_arm()
 
 	var fill_light := OmniLight3D.new()
 	fill_light.omni_range = 1.9
@@ -660,6 +750,41 @@ func _oval_step(a: float, b: float, th: float, chord: float, sgn: float) -> floa
 	return (lo + hi) * 0.5
 
 
+func _open_fingers(skel: Skeleton3D, side: String) -> void:
+	# The rig ships with a loose fist, which is right for the grabber handle but
+	# wrong for the bare hand. Straighten every phalanx along the knuckle direction
+	# so the hand reads as an open, reaching hand.
+	var ib := skel.find_bone("index_01_" + side)
+	var pb := skel.find_bone("pinky_01_" + side)
+	if ib < 0 or pb < 0:
+		return
+	var hinge := (_bone_rest_in_skel(skel, ib).origin - _bone_rest_in_skel(skel, pb).origin).normalized()
+	for f in ["index", "middle", "ring", "pinky"]:
+		var bones: Array[int] = []
+		var pts: Array[Vector3] = []
+		for j in 3:
+			var bj := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
+			if bj < 0:
+				break
+			bones.append(bj)
+			pts.append(_bone_rest_in_skel(skel, bj).origin)
+		if bones.size() < 3:
+			continue
+		var dir := pts[1] - pts[0]
+		dir = (dir - hinge * hinge.dot(dir)).normalized()
+		if dir.length() < 0.001:
+			continue
+		var prev_phi := 0.0
+		for j in 3:
+			var bj: int = bones[j]
+			var rest_dir := _bone_rest_in_skel(skel, bj).basis.y
+			rest_dir = (rest_dir - hinge * hinge.dot(rest_dir)).normalized()
+			var phi := atan2(hinge.dot(rest_dir.cross(dir)), rest_dir.dot(dir))
+			_set_bone_turn(skel, bj, _bone_rest_in_skel(skel, bj).basis.inverse() * hinge, phi - prev_phi)
+			prev_phi = phi
+	skel.force_update_all_bone_transforms()
+
+
 func _curl_fingers(skel: Skeleton3D, side: String, rho: float) -> void:
 	# Wrap every finger around the handle. The knuckle sits behind the palm skin, so
 	# the phalanx leaves the knuckle towards the oval of the handle plus finger
@@ -906,6 +1031,14 @@ func _place_arm_r() -> void:
 	_arms_r.transform = _arms_r_anchor * k.affine_inverse()
 
 
+func _place_open_arm() -> void:
+	if _arms_open == null or _arms_open_skel == null or _arms_open_bone < 0:
+		return
+	var bw := _arms_open_skel.global_transform * _arms_open_skel.get_bone_global_pose(_arms_open_bone)
+	var k := _arms_open.global_transform.affine_inverse() * bw
+	_arms_open.transform = _arms_open_anchor * k.affine_inverse()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		if not get_tree().paused:
@@ -975,10 +1108,17 @@ func _physics_process(delta: float) -> void:
 		reach += TP_CAM_DIST
 	ray.target_position = Vector3(0, 0, -reach)
 
+	_update_crouch(delta)
+
 	var speed := GameState.player_speed()
+	if _crouching:
+		speed *= CROUCH_SPEED_MULT
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var move_vec := Vector3(input_dir.x + _mobile_move.x, 0.0, input_dir.y + _mobile_move.y)
 	var dir := (transform.basis * move_vec).normalized()
+
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not _crouching:
+		velocity.y = JUMP_VELOCITY
 
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
@@ -991,6 +1131,7 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0.0, speed * 8.0 * delta)
 
 	move_and_slide()
+	_update_kicks(delta, dir)
 
 	var horiz := Vector2(velocity.x, velocity.z).length()
 	var walk_factor := clampf(horiz / maxf(speed, 0.01), 0.0, 1.0)
@@ -999,18 +1140,71 @@ func _physics_process(delta: float) -> void:
 	if third_person:
 		_update_third_person_camera()
 	else:
-		camera.position = Vector3(0, _base_cam_y + bob, 0)
+		camera.position = Vector3(0, _cam_height + bob, 0)
 		camera.rotation.x = _pitch
 
+	_update_hint()
 	_update_viewmodel(delta, move_vec)
 	_update_body(delta, move_vec)
-	_update_hint()
+
+
+func _update_crouch(delta: float) -> void:
+	var want_crouch := Input.is_action_pressed("crouch")
+	if want_crouch:
+		_crouching = true
+	elif _crouching and _can_stand():
+		_crouching = false
+	var target_h := CROUCH_HEIGHT if _crouching else STAND_HEIGHT
+	_capsule.height = move_toward(_capsule.height, target_h, delta * 4.5)
+	_col.position.y = _capsule.height * 0.5
+	var target_cam := CROUCH_CAM_Y if _crouching else _base_cam_y
+	_cam_height = move_toward(_cam_height, target_cam, delta * 3.6)
+
+
+func _can_stand() -> bool:
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		global_position + Vector3(0, CROUCH_HEIGHT - 0.05, 0),
+		global_position + Vector3(0, STAND_HEIGHT + 0.05, 0), 1)
+	query.exclude = [get_rid()]
+	return space.intersect_ray(query).is_empty()
+
+
+func _update_kicks(delta: float, move_dir: Vector3) -> void:
+	_kick_cd = maxf(_kick_cd - delta, 0.0)
+	if _kick_cd > 0.0 or not is_on_floor():
+		return
+	var dir := move_dir
+	if dir.length() < 0.1:
+		var drift := Vector3(velocity.x, 0.0, velocity.z)
+		if drift.length() < 0.45:
+			return
+		dir = drift.normalized()
+	else:
+		dir = dir.normalized()
+	_kick_cd = 0.20
+	_kick_query.transform = Transform3D(Basis.IDENTITY,
+		global_position + dir * 0.50 + Vector3(0, 0.30, 0))
+	var hits := get_world_3d().direct_space_state.intersect_shape(_kick_query, 8)
+	for h in hits:
+		var body: Object = h.get("collider")
+		if not (body is Product or body is TrashScript):
+			continue
+		var node := body as Node3D
+		var to := node.global_position - global_position
+		to.y = 0.0
+		if to.length() > 0.01 and to.normalized().dot(dir) < -0.25:
+			continue
+		if body is Product:
+			(body as Product).kick(dir)
+		else:
+			(body as TrashScript).kick(dir)
 
 
 func _update_third_person_camera() -> void:
 	var pitch := clampf(_pitch, -1.0, 0.5) - 0.10
 	var look := Basis(Vector3.RIGHT, pitch) * Vector3(0, 0, -1)
-	var pivot := Vector3(0.42, 1.5, 0)
+	var pivot := Vector3(0.42, _cam_height - 0.05, 0)
 	var desired := pivot - look * TP_CAM_DIST
 	_cam_cast.position = pivot
 	_cam_cast.target_position = desired - pivot
@@ -1089,7 +1283,7 @@ func _pick_up_product(product: Product) -> void:
 		Sfx.play("error", 1.1, -6.0)
 		return
 	stack.append(product.department)
-	_bag_kick = 1.0
+	_hand_reach = 1.0
 	main.on_product_picked(product, self)
 	stack_changed.emit()
 	interacted.emit(true, product.department)
@@ -1122,7 +1316,7 @@ func _place_on_shelf(shelf_node: Node) -> void:
 		Sfx.play("error", 1.1, -6.0)
 		return
 	stack.pop_back()
-	_bag_kick = 0.65
+	_hand_reach = 0.9
 	main.on_product_placed(shelf, dept)
 	stack_changed.emit()
 	interacted.emit(false, dept)
@@ -1133,7 +1327,7 @@ func drop_top() -> void:
 		return
 	var dept: int = stack.pop_back()
 	_grab_anim = 1.0
-	_bag_kick = 0.7
+	_hand_reach = 0.8
 	main.spawn_floor_product(dept, global_position + Vector3.ZERO, true)
 	stack_changed.emit()
 	Sfx.play("drop", 1.0, -4.0)
@@ -1142,6 +1336,18 @@ func drop_top() -> void:
 func add_to_stack(dept: int) -> void:
 	stack.append(dept)
 	stack_changed.emit()
+
+
+func _nearest_probe_hit() -> float:
+	var nearest := 0.0
+	for probe in [_tool_probe, _tool_probe_side]:
+		probe.force_raycast_update()
+		if not probe.is_colliding():
+			continue
+		var dist := camera.global_position.distance_to(probe.get_collision_point())
+		if nearest == 0.0 or dist < nearest:
+			nearest = dist
+	return nearest
 
 
 func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
@@ -1161,6 +1367,28 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	_viewmodel.rotation.z = lerpf(_viewmodel.rotation.z, -move_vec.x * 0.025 + sin(_bob_time) * 0.014 * walk, sway)
 	_viewmodel.rotation.x = lerpf(_viewmodel.rotation.x, -move_vec.y * 0.012 - 0.32 * look_up, sway)
 
+	# The grabber and bag are trash tools only. Aiming at a product or shelf lowers
+	# them out of frame and brings the bare hand up instead.
+	var mode_target := 1.0 if _ray_trash else 0.0
+	var mode_step := 7.0 if mode_target > _grabber_mode else 9.0
+	_grabber_mode = move_toward(_grabber_mode, mode_target, delta * mode_step)
+	var mode_ease := _grabber_mode * _grabber_mode * (3.0 - 2.0 * _grabber_mode)
+	_grabber_pivot.position.y = -1.20 * (1.0 - mode_ease)
+	_open_pivot.position.y = -0.50 * mode_ease
+	_grabber_pivot.visible = _grabber_mode > 0.01
+	_open_pivot.visible = _grabber_mode < 0.99
+	_bag_pivot.visible = _grabber_mode > 0.01
+
+	# Keep the long grabber head out of walls and shelves. The probe looks along the
+	# view; when geometry is closer than the jaws the whole tool slides back.
+	var want_pull := 0.0
+	var nearest := _nearest_probe_hit()
+	if nearest > 0.0 and nearest < TOOL_REACH:
+		want_pull = clampf(TOOL_REACH - nearest + 0.05, 0.0, TOOL_PULL_MAX)
+	var pull_speed := 18.0 if want_pull > _tool_pull else 6.0
+	_tool_pull = lerpf(_tool_pull, want_pull, minf(delta * pull_speed, 1.0))
+	var pull := _tool_pull * mode_ease
+
 	var dyaw := wrapf(_yaw - _prev_yaw, -PI, PI)
 	var dpitch := _pitch - _prev_pitch
 	_prev_yaw = _yaw
@@ -1168,18 +1396,22 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	_tool_lag_yaw = lerpf(_tool_lag_yaw, clampf(-dyaw * 9.0, -0.13, 0.13), minf(delta * 10.0, 1.0))
 	_tool_lag_pitch = lerpf(_tool_lag_pitch, clampf(-dpitch * 7.0, -0.11, 0.11), minf(delta * 10.0, 1.0))
 	_picker.rotation.y = _tool_lag_yaw
-	_picker.rotation.x = lerpf(_picker.rotation.x, -_grab_anim * 0.03 + _tool_lag_pitch, minf(delta * 10.0, 1.0))
+	_picker.rotation.x = lerpf(_picker.rotation.x, -_grab_anim * 0.03 + _tool_lag_pitch + pull * 0.55, minf(delta * 10.0, 1.0))
 	_picker.rotation.z = lerpf(_picker.rotation.z, -move_vec.x * 0.012 + sin(_bob_time) * 0.02 * walk, minf(delta * 5.0, 1.0))
-	_picker.position.z = lerpf(_picker.position.z, -_grab_anim * 0.03, minf(delta * 14.0, 1.0))
+	_picker.position.z = lerpf(_picker.position.z, -_grab_anim * 0.03 + pull, minf(delta * 14.0, 1.0))
 	_picker.position.y = lerpf(_picker.position.y, -_grab_anim * 0.014, minf(delta * 14.0, 1.0))
 
-	var fill := clampf(float(stack.size()) / 16.0, 0.0, 1.0)
+	_hand_reach = maxf(_hand_reach - delta * 3.6, 0.0)
+	_open_pivot.position.z = -0.10 * _hand_reach
+	_open_pivot.rotation.x = -0.18 * _hand_reach
+	_open_pivot.rotation.z = 0.05 * _hand_reach
+
 	_bag_kick = maxf(_bag_kick - delta * 3.2, 0.0)
-	var bag_scale := 0.72 * (1.0 + fill * 0.08 + _bag_kick * 0.035)
+	var bag_scale := 0.72 * (1.0 + _bag_kick * 0.035)
 	_bag_body.scale = _bag_body.scale.lerp(Vector3.ONE * bag_scale, minf(delta * 5.0, 1.0))
 	_bag_pivot.position = _bag_base_pos + Vector3(
 		sin(_bob_time) * 0.010 * walk,
-		-absf(sin(_bob_time)) * 0.013 * walk - _bag_kick * 0.02,
+		-absf(sin(_bob_time)) * 0.013 * walk - _bag_kick * 0.02 - 1.0 * (1.0 - mode_ease),
 		0.0)
 	_bag_pivot.rotation.z = lerpf(_bag_pivot.rotation.z, -move_vec.x * 0.045 + sin(_view_t * 1.3) * 0.008, minf(delta * 5.0, 1.0))
 	_bag_pivot.rotation.x = lerpf(_bag_pivot.rotation.x, move_vec.y * 0.02 + sin(_view_t * 1.7) * 0.006, minf(delta * 4.0, 1.0))
@@ -1191,6 +1423,8 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 		_grab_material.set_shader_parameter("close", close)
 	if _arms_l != null:
 		_place_arm_l()
+	if _arms_open != null:
+		_place_open_arm()
 	if _arms_r != null:
 		_place_arm_r()
 	_grab_anim = maxf(_grab_anim - delta * 4.5, 0.0)
@@ -1198,14 +1432,18 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 
 func _update_hint() -> void:
 	ray.force_raycast_update()
+	_ray_trash = false
 	if not ray.is_colliding():
 		_hint_label.visible = false
 		return
 	var collider := ray.get_collider()
+	if collider == null or not is_instance_valid(collider):
+		_hint_label.visible = false
+		return
 	if collider is Product:
 		var p: Product = collider
 		if stack.size() < GameState.capacity():
-			_hint_label.text = "[E] Pick up %s" % GameState.DEPARTMENT_NAMES[p.department]
+			_hint_label.text = "[E] Hand  •  Pick up %s" % GameState.DEPARTMENT_NAMES[p.department]
 			_hint_label.modulate = GameState.DEPARTMENT_COLORS[p.department].lightened(0.25)
 			_hint_label.visible = true
 		else:
@@ -1215,17 +1453,18 @@ func _update_hint() -> void:
 		_hint_label.global_position = p.global_position + Vector3(0, 0.6, 0)
 	elif collider is TrashScript:
 		var trash: TrashScript = collider
-		_hint_label.text = "[E] Clean up  +$%d" % GameState.trash_payout(trash.value)
+		_ray_trash = true
+		_hint_label.text = "[E] Grabber  •  Clean +$%d" % GameState.trash_payout(trash.value)
 		_hint_label.modulate = Color(0.55, 1.0, 0.75)
 		_hint_label.global_position = trash.global_position + Vector3(0, 0.82, 0)
 		_hint_label.visible = true
-	elif collider != null and (collider.has_meta("is_shelf") or collider.get_parent() is Shelf):
+	elif collider.has_meta("is_shelf") or collider.get_parent() is Shelf:
 		var shelf: Shelf = collider if collider is Shelf else collider.get_parent()
 		if stack.is_empty():
 			_hint_label.text = "%s shelf" % GameState.DEPARTMENT_NAMES[shelf.department]
 			_hint_label.modulate = shelf.dept_color.lightened(0.15)
 		elif stack.back() == shelf.department:
-			_hint_label.text = "[E] Place %s  •  $%d" % [GameState.DEPARTMENT_NAMES[shelf.department], GameState.product_price(shelf.department)]
+			_hint_label.text = "[E] Hand  •  Place %s  •  $%d" % [GameState.DEPARTMENT_NAMES[shelf.department], GameState.product_price(shelf.department)]
 			_hint_label.modulate = Color(0.5, 1, 0.5)
 		else:
 			_hint_label.text = "Need %s shelf" % GameState.DEPARTMENT_NAMES[stack.back()]
@@ -1291,5 +1530,5 @@ func organize_stack() -> void:
 		for i in counts[k]:
 			new_stack.append(k)
 	stack = new_stack
-	_bag_kick = 1.0
+	_hand_reach = 0.6
 	stack_changed.emit()
