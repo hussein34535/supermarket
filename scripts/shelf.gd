@@ -10,6 +10,7 @@ var placed_count: int = 0
 var shelf_products: Array[Node3D] = []
 
 var _slots: Array[Transform3D] = []
+var _free_slots: Array[int] = []
 var _metal: StandardMaterial3D
 var _glow_material: StandardMaterial3D
 var _glow_meshes: Array[MeshInstance3D] = []
@@ -115,6 +116,7 @@ func setup(dept: int, color: Color, length: float) -> void:
 			for dz in [-0.22, 0.0, 0.22]:
 				var t := Transform3D()
 				t.origin = Vector3(x, levels[li] + 0.03, dz)
+				_free_slots.append(_slots.size())
 				_slots.append(t)
 
 
@@ -189,13 +191,27 @@ func _add_box(size: Vector3, pos: Vector3, mat: Material, track_glow: bool) -> M
 
 
 func can_accept() -> bool:
-	return placed_count < _slots.size()
+	return not _free_slots.is_empty()
 
 
-func place_product(color: Color) -> bool:
-	if placed_count >= _slots.size():
+func place_product(color: Color, near: Vector3 = Vector3.ZERO) -> bool:
+	if _free_slots.is_empty():
 		return false
-	var slot := _slots[placed_count]
+	# Fill the shelf where the shopper is standing. Taking the next slot in a fixed
+	# order put the first product at the far end of a fourteen metre rack, so the
+	# hand-off looked like it had swallowed the box.
+	var pick := 0
+	if near != Vector3.ZERO:
+		var local := to_local(near)
+		var best := 1e9
+		for i in _free_slots.size():
+			var d := _slots[_free_slots[i]].origin.distance_to(local)
+			if d < best:
+				best = d
+				pick = i
+	var slot_index: int = _free_slots[pick]
+	_free_slots.remove_at(pick)
+	var slot := _slots[slot_index]
 	placed_count += 1
 
 	var rng := RandomNumberGenerator.new()

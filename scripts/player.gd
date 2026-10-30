@@ -23,7 +23,7 @@ const ARM_L_SCALE := 1.0
 # Resting pose of the empty hand. The grabber hand is curled around the handle;
 # this second arm keeps the rig's open hand and reaches forward when products are
 # being picked up or placed.
-const HAND_OPEN_TARGET := Vector3(-0.34, -0.42, -0.62)
+const HAND_OPEN_TARGET := Vector3(-0.28, -0.27, -0.58)
 const HAND_OPEN_BAR := Vector3(-1.0, 0.2, 0.0)
 const HAND_OPEN_FORE := Vector3(-0.52, -0.55, 0.65)
 # Zero reference for the spin of the hand about the handle. The palm ends up square
@@ -77,6 +77,9 @@ var _bag_pivot: Node3D
 var _bag_body: Node3D
 var _hand_l: Node3D
 var _hand_open: Node3D
+var _carry_holder: Node3D
+var _carry_pop: float = 0.0
+var _body_crouch: float = 0.0
 var _arm_r: Node3D
 var _arms_l: Node3D
 var _arms_l_skel: Skeleton3D
@@ -195,6 +198,9 @@ func _ready() -> void:
 	hand_light.omni_range = 5.0
 	hand_light.light_energy = 0.6
 	hand_light.light_color = Color(1.0, 0.97, 0.9)
+	# Layer 2 is the product riding in the palm; it is close enough to this lamp to
+	# clip to white, so it is left to the room lighting.
+	hand_light.light_cull_mask = 1
 	camera.add_child(hand_light)
 
 	_hint_label = Label3D.new()
@@ -208,6 +214,8 @@ func _ready() -> void:
 	add_child(_hint_label)
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	stack_changed.connect(_refresh_carry)
+	_refresh_carry()
 
 
 func _build_viewmodel() -> void:
@@ -333,11 +341,22 @@ func _build_viewmodel() -> void:
 				HAND_OPEN_BAR, HAND_OPEN_FORE, HAND_OPEN_TARGET, 0.0)
 			_place_open_arm()
 
+	# Whatever the player is carrying rides in that open palm.
+	_carry_holder = Node3D.new()
+	_carry_holder.name = "CarryProduct"
+	_open_pivot.add_child(_carry_holder)
+	_carry_holder.position = HAND_OPEN_TARGET + Vector3(-0.005, 0.018, -0.005)
+	_carry_holder.rotation = Vector3(deg_to_rad(-16.0), deg_to_rad(24.0), deg_to_rad(-8.0))
+	_carry_holder.visible = false
+
 	var fill_light := OmniLight3D.new()
 	fill_light.omni_range = 1.9
 	fill_light.light_energy = 1.40
 	fill_light.light_color = Color(1.0, 0.95, 0.88)
 	fill_light.position = Vector3(-0.28, 0.16, 0.18)
+	# The carried product sits right on top of this lamp, so it is kept off the
+	# light's cull mask and lit by the room instead of blowing out to white.
+	fill_light.light_cull_mask = 1
 	_picker.add_child(fill_light)
 
 	# RIGHT ARM (Holding trash bag knot)
@@ -751,37 +770,27 @@ func _oval_step(a: float, b: float, th: float, chord: float, sgn: float) -> floa
 
 
 func _open_fingers(skel: Skeleton3D, side: String) -> void:
-	# The rig ships with a loose fist, which is right for the grabber handle but
-	# wrong for the bare hand. Straighten every phalanx along the knuckle direction
-	# so the hand reads as an open, reaching hand.
-	var ib := skel.find_bone("index_01_" + side)
-	var pb := skel.find_bone("pinky_01_" + side)
-	if ib < 0 or pb < 0:
-		return
-	var hinge := (_bone_rest_in_skel(skel, ib).origin - _bone_rest_in_skel(skel, pb).origin).normalized()
+	# The rig ships in a fist, and its bind pose is a fist too, so measuring rest
+	# directions finds nothing to fix. The curl axis is the bone's own local X, so
+	# each phalanx is turned back about that axis: a lot at the knuckle, less at the
+	# tip, which unfolds the hand without hyper-extending the fingertips.
+	var angles := [50.0, 38.0, 26.0]
 	for f in ["index", "middle", "ring", "pinky"]:
-		var bones: Array[int] = []
-		var pts: Array[Vector3] = []
 		for j in 3:
 			var bj := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
 			if bj < 0:
-				break
-			bones.append(bj)
-			pts.append(_bone_rest_in_skel(skel, bj).origin)
-		if bones.size() < 3:
+				continue
+			var rq := skel.get_bone_rest(bj).basis.get_rotation_quaternion()
+			skel.set_bone_pose_rotation(bj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(angles[j])))
+	# The thumb rests across the palm. Rolling it the same way lifts the pad off the
+	# fingers so the hand reads as open instead of half-closed around nothing.
+	var thumb := [45.0, 31.0, 22.0]
+	for j in 3:
+		var tj := skel.find_bone("thumb_0%d_%s" % [j + 1, side])
+		if tj < 0:
 			continue
-		var dir := pts[1] - pts[0]
-		dir = (dir - hinge * hinge.dot(dir)).normalized()
-		if dir.length() < 0.001:
-			continue
-		var prev_phi := 0.0
-		for j in 3:
-			var bj: int = bones[j]
-			var rest_dir := _bone_rest_in_skel(skel, bj).basis.y
-			rest_dir = (rest_dir - hinge * hinge.dot(rest_dir)).normalized()
-			var phi := atan2(hinge.dot(rest_dir.cross(dir)), rest_dir.dot(dir))
-			_set_bone_turn(skel, bj, _bone_rest_in_skel(skel, bj).basis.inverse() * hinge, phi - prev_phi)
-			prev_phi = phi
+		var rq := skel.get_bone_rest(tj).basis.get_rotation_quaternion()
+		skel.set_bone_pose_rotation(tj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(thumb[j])))
 	skel.force_update_all_bone_transforms()
 
 
@@ -1039,6 +1048,29 @@ func _place_open_arm() -> void:
 	_arms_open.transform = _arms_open_anchor * k.affine_inverse()
 
 
+func _refresh_carry() -> void:
+	# The hand is only worth having if the thing being carried is in it, so the top
+	# of the stack gets a real product mesh parked on the palm.
+	if _carry_holder == null:
+		return
+	for c in _carry_holder.get_children():
+		c.queue_free()
+	if stack.is_empty():
+		_carry_holder.visible = false
+		return
+	var dept: int = stack.back()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 8123 + dept * 977
+	var holder := Node3D.new()
+	_carry_holder.add_child(holder)
+	ProductShapes.build(holder, dept, GameState.DEPARTMENT_COLORS[dept], rng, 0.82)
+	holder.scale = Vector3.ONE * 0.62
+	for mi in holder.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).layers = 2
+	_carry_holder.visible = true
+	_carry_pop = 1.0
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		if not get_tree().paused:
@@ -1235,11 +1267,18 @@ func _update_body(delta: float, move_vec: Vector3) -> void:
 
 	var bob := -0.09 * sin(_walk_phase) * sin(_walk_phase) * _walk_amt
 	var breath := sin(_view_t * 1.6) * 0.003 * (1.0 - _walk_amt)
+	# The body is a single skinned mesh, so a real knee bend is out of reach. Squashing
+	# it about the feet and leaning the chest forward is what reads as a crouch from
+	# behind, and it matches the capsule and camera that actually do the work.
+	_body_crouch = lerpf(_body_crouch, 1.0 if _crouching else 0.0, 1.0 - exp(-delta * 9.0))
 	_body.position.y = bob + breath
+	_body.scale = Vector3(BODY_SCALE,
+		BODY_SCALE * (1.0 - 0.26 * _body_crouch),
+		BODY_SCALE * (1.0 + 0.05 * _body_crouch))
 
 	_body_yaw = lerp_angle(_body_yaw, _yaw, 1.0 - exp(-delta * 8.0))
 	_body.rotation.y = PI + wrapf(_body_yaw - _yaw, -PI, PI)
-	var target_lean := (0.05 + 0.08 * run) * _walk_amt
+	var target_lean := (0.05 + 0.08 * run) * _walk_amt + 0.26 * _body_crouch
 	var target_roll := cos(_walk_phase) * 0.022 * _walk_amt + move_vec.x * 0.035 * _walk_amt
 	_body_lean = lerpf(_body_lean, target_lean, 1.0 - exp(-delta * 6.0))
 	_body_roll = lerpf(_body_roll, target_roll, 1.0 - exp(-delta * 6.0))
@@ -1317,7 +1356,8 @@ func _place_on_shelf(shelf_node: Node) -> void:
 		return
 	stack.pop_back()
 	_hand_reach = 0.9
-	main.on_product_placed(shelf, dept)
+	var at := ray.get_collision_point() if ray.is_colliding() else global_position
+	main.on_product_placed(shelf, dept, at)
 	stack_changed.emit()
 	interacted.emit(false, dept)
 
@@ -1405,6 +1445,11 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	_open_pivot.position.z = -0.10 * _hand_reach
 	_open_pivot.rotation.x = -0.18 * _hand_reach
 	_open_pivot.rotation.z = 0.05 * _hand_reach
+
+	_carry_pop = maxf(_carry_pop - delta * 3.0, 0.0)
+	if _carry_holder != null and _carry_holder.visible:
+		var pop := 1.0 + _carry_pop * 0.14
+		_carry_holder.scale = _carry_holder.scale.lerp(Vector3.ONE * pop, minf(delta * 12.0, 1.0))
 
 	_bag_kick = maxf(_bag_kick - delta * 3.2, 0.0)
 	var bag_scale := 0.72 * (1.0 + _bag_kick * 0.035)

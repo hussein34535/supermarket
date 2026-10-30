@@ -1250,8 +1250,8 @@ func on_product_picked(product: Product, _p: Player) -> void:
 	product.queue_free()
 
 
-func on_product_placed(shelf: Shelf, dept: int) -> void:
-	shelf.place_product(GameState.DEPARTMENT_COLORS[dept])
+func on_product_placed(shelf: Shelf, dept: int, at: Vector3 = Vector3.ZERO) -> void:
+	shelf.place_product(GameState.DEPARTMENT_COLORS[dept], at if at != Vector3.ZERO else player.global_position)
 	var payout := GameState.register_placement(dept)
 	GameState.add_cash(payout)
 	GameState.add_placed(1)
