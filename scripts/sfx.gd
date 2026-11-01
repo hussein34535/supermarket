@@ -22,6 +22,12 @@ func _ready() -> void:
 	_streams["win"] = _tone([[523, 0.12], [659, 0.12], [784, 0.12], [1046, 0.22]], 0.32)
 	_streams["beep"] = _tone([[1500, 0.035], [1900, 0.03]], 0.2)
 	_streams["cash"] = _tone([[1180, 0.04], [1560, 0.045], [2100, 0.09]], 0.26)
+	_streams["scan_done"] = _tone([[980, 0.05], [1320, 0.06], [1760, 0.10]], 0.24)
+	_streams["pay"] = _tone([[880, 0.05], [1180, 0.05], [1480, 0.05], [1970, 0.12]], 0.26)
+	_streams["angry"] = _tone([[220, 0.09], [180, 0.12], [140, 0.14]], 0.28)
+	_streams["delivery"] = _tone([[320, 0.06], [420, 0.06], [560, 0.09]], 0.28)
+	_streams["hire"] = _tone([[520, 0.06], [700, 0.06], [940, 0.10]], 0.26)
+	_streams["day_end"] = _tone([[740, 0.10], [620, 0.10], [500, 0.16]], 0.26)
 	_ambient = AudioStreamPlayer.new()
 	_ambient.stream = _room_tone()
 	_ambient.volume_db = -10.0

@@ -22,6 +22,31 @@ var shop_stats_label: Label
 var win_stats_label: Label
 var start_banner: Control
 var level_banner: Control
+
+var clock_label: Label
+var stars_label: Label
+var served_label: Label
+var checkout_panel: PanelContainer
+var checkout_title: Label
+var checkout_info: Label
+var checkout_scan_bar: ProgressBar
+var checkout_patience_bar: ProgressBar
+var rep_panel: PanelContainer
+var rep_title: Label
+var rep_log_label: Label
+var day_panel: PanelContainer
+var day_summary_label: Label
+var tab_buttons: Array[Button] = []
+var tab_pages: Array[Control] = []
+var _tab: int = 0
+var staff_hire_btns: Dictionary = {}
+var staff_fire_btns: Dictionary = {}
+var staff_info_label: Label
+var store_upgrade_btn: Button
+var extra_delivery_btn: Button
+var store_info_label: Label
+var stats_info_label: Label
+var day_end_btn: Button
 var _cash_tween: Tween
 var _combo_tween: Tween
 var _combo_active: bool = false
@@ -61,6 +86,9 @@ func _ready() -> void:
 	_build_upgrades_panel()
 	_build_pause_panel()
 	_build_win_panel()
+	_build_checkout_panel()
+	_build_rep_panel()
+	_build_day_panel()
 	_build_mobile()
 	GameState.cash_changed.connect(_update_cash)
 	GameState.progress_changed.connect(_update_progress)
@@ -69,6 +97,13 @@ func _ready() -> void:
 	GameState.powerup_state_changed.connect(_on_powerup_state)
 	GameState.streak_changed.connect(_on_streak_changed)
 	GameState.cleaned_changed.connect(_on_cleaned_changed)
+	GameState.clock_changed.connect(_update_topbar)
+	GameState.reputation_changed.connect(_on_reputation_changed)
+	GameState.served_changed.connect(_update_topbar)
+	GameState.staff_changed.connect(_on_management_changed)
+	GameState.store_changed.connect(_on_management_changed)
+	GameState.day_changed.connect(_on_day_changed)
+	GameState.day_ended.connect(_on_day_ended)
 	player.stack_changed.connect(_update_capacity)
 	player.powerup_used.connect(func(_i: int) -> void: _refresh_powerups())
 	_update_cash()
@@ -77,6 +112,8 @@ func _ready() -> void:
 	_update_shop()
 	_refresh_powerups()
 	_update_earnings()
+	_update_topbar()
+	_update_checkout_panel()
 
 
 func _style(bg: Color, border: Color = Color(0, 0, 0, 0), radius: int = 12, margin: int = 0, border_w: int = 0) -> StyleBoxFlat:
@@ -137,6 +174,34 @@ func _build_hud() -> void:
 	cash_label.pivot_offset = Vector2(55, 20)
 	hbox.add_child(cash_label)
 
+	var day_wrap := VBoxContainer.new()
+	day_wrap.add_theme_constant_override("separation", 1)
+	hbox.add_child(day_wrap)
+
+	clock_label = Label.new()
+	clock_label.text = "DAY 1  •  08:00"
+	clock_label.add_theme_font_size_override("font_size", 15)
+	clock_label.add_theme_color_override("font_color", Color(0.82, 0.93, 1.0))
+	clock_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	day_wrap.add_child(clock_label)
+
+	var day_row := HBoxContainer.new()
+	day_row.add_theme_constant_override("separation", 8)
+	day_wrap.add_child(day_row)
+
+	stars_label = Label.new()
+	stars_label.text = "★★★☆☆"
+	stars_label.add_theme_font_size_override("font_size", 13)
+	stars_label.add_theme_color_override("font_color", Color(1.0, 0.86, 0.35))
+	day_row.add_child(stars_label)
+
+	served_label = Label.new()
+	served_label.text = "SERVED 0"
+	served_label.add_theme_font_size_override("font_size", 11)
+	served_label.modulate = Color(1, 1, 1, 0.6)
+	served_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	day_row.add_child(served_label)
+
 	var prog_wrap := VBoxContainer.new()
 	prog_wrap.add_theme_constant_override("separation", 3)
 	prog_wrap.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -175,7 +240,7 @@ func _build_hud() -> void:
 	hbox.add_child(spacer)
 
 	var hints := Label.new()
-	hints.text = "[U] Shop   [P] Pause   [V] View   [Tab] Cursor   [Q] Drop"
+	hints.text = "[U] Manage   [R] Reputation   [P] Pause   [V] View   [Tab] Cursor   [Q] Drop"
 	hints.add_theme_font_size_override("font_size", 13)
 	hints.modulate = Color(1, 1, 1, 0.5)
 	hints.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -371,7 +436,7 @@ func _build_upgrades_panel() -> void:
 	vbox.add_child(title_row)
 
 	var title := Label.new()
-	title.text = "UPGRADES"
+	title.text = "MANAGEMENT"
 	title.add_theme_font_size_override("font_size", 28)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
@@ -383,41 +448,65 @@ func _build_upgrades_panel() -> void:
 	upgrades_cash_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_row.add_child(upgrades_cash_label)
 
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 6)
+	vbox.add_child(tabs)
+
+	var tab_names: Array[String] = ["UPGRADES", "STAFF", "STORE", "STATS"]
+	var tab_group := ButtonGroup.new()
+	for i in 4:
+		var tb := Button.new()
+		tb.text = tab_names[i]
+		tb.toggle_mode = true
+		tb.button_group = tab_group
+		tb.custom_minimum_size = Vector2(126, 34)
+		tb.add_theme_font_size_override("font_size", 12)
+		_button_styles(tb, Color(0.4, 0.85, 1.0))
+		tb.pressed.connect(_set_tab.bind(i))
+		tabs.add_child(tb)
+		tab_buttons.append(tb)
+	tab_buttons[0].button_pressed = true
+
+	var page0 := VBoxContainer.new()
+	page0.add_theme_constant_override("separation", 6)
+	vbox.add_child(page0)
+	tab_pages.append(page0)
+
 	shop_stats_label = Label.new()
 	shop_stats_label.text = ""
 	shop_stats_label.add_theme_font_size_override("font_size", 12)
 	shop_stats_label.modulate = Color(1, 1, 1, 0.5)
-	vbox.add_child(shop_stats_label)
+	page0.add_child(shop_stats_label)
 
 	var move_title := Label.new()
 	move_title.text = "MOVEMENT & CARRY"
 	move_title.add_theme_font_size_override("font_size", 12)
 	move_title.modulate = Color(1, 1, 1, 0.55)
-	vbox.add_child(move_title)
+	page0.add_child(move_title)
 
-	speed_btn = _make_row(vbox, "Movement Speed", Color(0.35, 0.9, 0.5), _buy_speed)
-	reach_btn = _make_row(vbox, "Interaction Distance", Color(0.4, 0.75, 1.0), _buy_reach)
-	cap_btn = _make_row(vbox, "Carrying Capacity", Color(1.0, 0.8, 0.3), _buy_cap)
+	speed_btn = _make_row(page0, "Movement Speed", Color(0.35, 0.9, 0.5), _buy_speed)
+	reach_btn = _make_row(page0, "Interaction Distance", Color(0.4, 0.75, 1.0), _buy_reach)
+	cap_btn = _make_row(page0, "Carrying Capacity", Color(1.0, 0.8, 0.3), _buy_cap)
 
 	var eco_title := Label.new()
 	eco_title.text = "STORE ECONOMY"
 	eco_title.add_theme_font_size_override("font_size", 12)
 	eco_title.modulate = Color(1, 1, 1, 0.55)
-	vbox.add_child(eco_title)
+	page0.add_child(eco_title)
 
-	clean_btn = _make_row(vbox, "Cleaning Value", Color(0.55, 1.0, 0.75), _buy_clean)
+	clean_btn = _make_row(page0, "Cleaning Value", Color(0.55, 1.0, 0.75), _buy_clean)
 
 	var eco_hint := Label.new()
 	eco_hint.text = "Trash pays +35% per level  •  fast stocking pays up to x3"
 	eco_hint.add_theme_font_size_override("font_size", 11)
 	eco_hint.modulate = Color(1, 1, 1, 0.45)
-	vbox.add_child(eco_hint)
+	page0.add_child(eco_hint)
 
 	var pu_title := Label.new()
 	pu_title.text = "ACTIVE ABILITIES"
 	pu_title.add_theme_font_size_override("font_size", 12)
 	pu_title.modulate = Color(1, 1, 1, 0.55)
-	vbox.add_child(pu_title)
+	page0.add_child(pu_title)
 
 	var colors: Array[Color] = [
 		Color(1.0, 0.85, 0.35), Color(0.45, 1.0, 0.55), Color(0.4, 0.85, 1.0), Color(0.85, 0.55, 1.0)
@@ -426,7 +515,7 @@ func _build_upgrades_panel() -> void:
 	pu_grid.columns = 2
 	pu_grid.add_theme_constant_override("h_separation", 8)
 	pu_grid.add_theme_constant_override("v_separation", 6)
-	vbox.add_child(pu_grid)
+	page0.add_child(pu_grid)
 	for i in 4:
 		var btn := _make_row(pu_grid, GameState.POWERUP_NAMES[i], colors[i], _buy_powerup.bind(i), 250.0)
 		powerup_shop_btns.append(btn)
@@ -436,7 +525,28 @@ func _build_upgrades_panel() -> void:
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.modulate = Color(1, 1, 1, 0.45)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(hint)
+	page0.add_child(hint)
+
+	var page1 := VBoxContainer.new()
+	page1.add_theme_constant_override("separation", 8)
+	page1.visible = false
+	vbox.add_child(page1)
+	tab_pages.append(page1)
+	_build_staff_page(page1)
+
+	var page2 := VBoxContainer.new()
+	page2.add_theme_constant_override("separation", 8)
+	page2.visible = false
+	vbox.add_child(page2)
+	tab_pages.append(page2)
+	_build_store_page(page2)
+
+	var page3 := VBoxContainer.new()
+	page3.add_theme_constant_override("separation", 8)
+	page3.visible = false
+	vbox.add_child(page3)
+	tab_pages.append(page3)
+	_build_stats_page(page3)
 
 	var close := Button.new()
 	close.text = "Close  [U]"
@@ -444,6 +554,116 @@ func _build_upgrades_panel() -> void:
 	_button_styles(close, Color(0.35, 0.9, 0.5))
 	close.pressed.connect(toggle_upgrades)
 	vbox.add_child(close)
+
+
+func _build_staff_page(page: VBoxContainer) -> void:
+	var head := Label.new()
+	head.text = "HIRE HELP  •  wages are paid at the end of every day"
+	head.add_theme_font_size_override("font_size", 12)
+	head.modulate = Color(1, 1, 1, 0.55)
+	page.add_child(head)
+
+	staff_info_label = Label.new()
+	staff_info_label.add_theme_font_size_override("font_size", 13)
+	staff_info_label.modulate = Color(1, 1, 1, 0.8)
+	page.add_child(staff_info_label)
+
+	var accents: Dictionary = {
+		"cleaner": Color(0.55, 1.0, 0.75),
+		"stocker": Color(1.0, 0.85, 0.35),
+		"cashier": Color(0.4, 0.85, 1.0),
+	}
+	for kind in GameState.STAFF_KINDS:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		page.add_child(row)
+
+		var hire := Button.new()
+		hire.custom_minimum_size = Vector2(0, 44)
+		hire.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hire.add_theme_font_size_override("font_size", 13)
+		_button_styles(hire, accents.get(kind, Color.WHITE))
+		hire.pressed.connect(_hire_staff.bind(kind))
+		row.add_child(hire)
+		staff_hire_btns[kind] = hire
+
+		var fire := Button.new()
+		fire.text = "Fire"
+		fire.custom_minimum_size = Vector2(88, 44)
+		fire.add_theme_font_size_override("font_size", 13)
+		_button_styles(fire, Color(1.0, 0.5, 0.45))
+		fire.pressed.connect(_fire_staff.bind(kind))
+		row.add_child(fire)
+		staff_fire_btns[kind] = fire
+
+	var note := Label.new()
+	note.text = "Cleaner picks up trash  •  Stocker moves floor goods onto shelves\nCashier runs the express lane automatically (store level 2+)"
+	note.add_theme_font_size_override("font_size", 11)
+	note.modulate = Color(1, 1, 1, 0.45)
+	page.add_child(note)
+
+
+func _build_store_page(page: VBoxContainer) -> void:
+	var head := Label.new()
+	head.text = "STORE GROWTH"
+	head.add_theme_font_size_override("font_size", 12)
+	head.modulate = Color(1, 1, 1, 0.55)
+	page.add_child(head)
+
+	store_info_label = Label.new()
+	store_info_label.add_theme_font_size_override("font_size", 13)
+	store_info_label.modulate = Color(1, 1, 1, 0.82)
+	page.add_child(store_info_label)
+
+	store_upgrade_btn = Button.new()
+	store_upgrade_btn.custom_minimum_size = Vector2(0, 46)
+	store_upgrade_btn.add_theme_font_size_override("font_size", 13)
+	_button_styles(store_upgrade_btn, Color(0.35, 0.9, 0.5))
+	store_upgrade_btn.pressed.connect(_buy_store)
+	page.add_child(store_upgrade_btn)
+
+	extra_delivery_btn = Button.new()
+	extra_delivery_btn.custom_minimum_size = Vector2(0, 44)
+	extra_delivery_btn.add_theme_font_size_override("font_size", 13)
+	_button_styles(extra_delivery_btn, Color(0.4, 0.85, 1.0))
+	extra_delivery_btn.pressed.connect(_order_delivery)
+	page.add_child(extra_delivery_btn)
+
+	var sep := HSeparator.new()
+	page.add_child(sep)
+
+	day_end_btn = Button.new()
+	day_end_btn.text = "Close the store now  •  end day"
+	day_end_btn.custom_minimum_size = Vector2(0, 44)
+	day_end_btn.add_theme_font_size_override("font_size", 13)
+	_button_styles(day_end_btn, Color(1.0, 0.75, 0.4))
+	day_end_btn.pressed.connect(_end_day_now)
+	page.add_child(day_end_btn)
+
+	var note := Label.new()
+	note.text = "Store levels unlock the express lane, more shoppers and self-checkout.\nExtra deliveries cost $%d and land in the delivery bay." % GameState.DELIVERY_ORDER_COST
+	note.add_theme_font_size_override("font_size", 11)
+	note.modulate = Color(1, 1, 1, 0.45)
+	page.add_child(note)
+
+
+func _build_stats_page(page: VBoxContainer) -> void:
+	var head := Label.new()
+	head.text = "TODAY & ALL TIME"
+	head.add_theme_font_size_override("font_size", 12)
+	head.modulate = Color(1, 1, 1, 0.55)
+	page.add_child(head)
+
+	stats_info_label = Label.new()
+	stats_info_label.add_theme_font_size_override("font_size", 14)
+	stats_info_label.modulate = Color(1, 1, 1, 0.85)
+	page.add_child(stats_info_label)
+
+	var note := Label.new()
+	note.text = "Reputation drives shopper traffic, patience and tips.\nPress R at any time to read the reputation log."
+	note.add_theme_font_size_override("font_size", 11)
+	note.modulate = Color(1, 1, 1, 0.45)
+	page.add_child(note)
 
 
 func _make_row(parent: Control, text: String, accent: Color, action: Callable, min_width: float = 0.0) -> Button:
@@ -615,8 +835,45 @@ func _build_mobile() -> void:
 	interact_btn.offset_top = -164
 	interact_btn.offset_right = -40
 	interact_btn.offset_bottom = -68
-	interact_btn.pressed.connect(func() -> void: player.try_interact())
+	# Holding E is how belt items are scanned, so the mobile button keeps the
+	# hold state and fires the normal interaction when released.
+	interact_btn.button_down.connect(func() -> void: player.set_mobile_interact(true))
+	interact_btn.button_up.connect(func() -> void:
+		player.set_mobile_interact(false)
+		player.try_interact()
+	)
 	mobile_root.add_child(interact_btn)
+
+	var jump_btn := Button.new()
+	jump_btn.text = "Jump"
+	jump_btn.add_theme_font_size_override("font_size", 15)
+	_button_styles(jump_btn, Color(0.55, 0.85, 1.0))
+	jump_btn.anchor_left = 1.0
+	jump_btn.anchor_top = 1.0
+	jump_btn.anchor_right = 1.0
+	jump_btn.anchor_bottom = 1.0
+	jump_btn.offset_left = -240
+	jump_btn.offset_top = -164
+	jump_btn.offset_right = -144
+	jump_btn.offset_bottom = -68
+	jump_btn.pressed.connect(func() -> void: player.try_jump())
+	mobile_root.add_child(jump_btn)
+
+	var crouch_btn := Button.new()
+	crouch_btn.text = "Crouch"
+	crouch_btn.add_theme_font_size_override("font_size", 13)
+	_button_styles(crouch_btn, Color(1.0, 0.85, 0.45))
+	crouch_btn.anchor_left = 1.0
+	crouch_btn.anchor_top = 1.0
+	crouch_btn.anchor_right = 1.0
+	crouch_btn.anchor_bottom = 1.0
+	crouch_btn.offset_left = -240
+	crouch_btn.offset_top = -272
+	crouch_btn.offset_right = -144
+	crouch_btn.offset_bottom = -176
+	crouch_btn.button_down.connect(func() -> void: player.set_mobile_crouch(true))
+	crouch_btn.button_up.connect(func() -> void: player.set_mobile_crouch(false))
+	mobile_root.add_child(crouch_btn)
 
 	var drop_btn := Button.new()
 	drop_btn.text = "Drop"
@@ -634,8 +891,8 @@ func _build_mobile() -> void:
 	mobile_root.add_child(drop_btn)
 
 	var shop_btn := Button.new()
-	shop_btn.text = "Shop"
-	shop_btn.add_theme_font_size_override("font_size", 15)
+	shop_btn.text = "Manage"
+	shop_btn.add_theme_font_size_override("font_size", 13)
 	_button_styles(shop_btn, Color(0.4, 0.75, 1.0))
 	shop_btn.anchor_left = 1.0
 	shop_btn.anchor_top = 0.0
@@ -678,15 +935,30 @@ func _build_mobile() -> void:
 	view_btn.pressed.connect(func() -> void: player.toggle_view())
 	mobile_root.add_child(view_btn)
 
+	var rep_btn := Button.new()
+	rep_btn.text = "Rep"
+	rep_btn.add_theme_font_size_override("font_size", 13)
+	_button_styles(rep_btn, Color(1.0, 0.85, 0.4))
+	rep_btn.anchor_left = 1.0
+	rep_btn.anchor_top = 0.0
+	rep_btn.anchor_right = 1.0
+	rep_btn.anchor_bottom = 0.0
+	rep_btn.offset_left = -406
+	rep_btn.offset_top = 70
+	rep_btn.offset_right = -316
+	rep_btn.offset_bottom = 120
+	rep_btn.pressed.connect(toggle_rep_panel)
+	mobile_root.add_child(rep_btn)
+
 	var pu_row := HBoxContainer.new()
 	pu_row.anchor_left = 1.0
 	pu_row.anchor_top = 1.0
 	pu_row.anchor_right = 1.0
 	pu_row.anchor_bottom = 1.0
 	pu_row.offset_left = -420
-	pu_row.offset_top = -244
+	pu_row.offset_top = -344
 	pu_row.offset_right = -20
-	pu_row.offset_bottom = -176
+	pu_row.offset_bottom = -276
 	pu_row.add_theme_constant_override("separation", 8)
 	mobile_root.add_child(pu_row)
 	for i in 4:
@@ -745,6 +1017,7 @@ func _update_joy(pos: Vector2) -> void:
 func _process(_delta: float) -> void:
 	_refresh_powerups()
 	_update_earnings()
+	_update_checkout_panel()
 
 
 func _update_cash() -> void:
@@ -937,6 +1210,7 @@ func _update_shop() -> void:
 		shop_stats_label.text = "Earned $%d   •   Trash cleaned %d   •   Combo x%.1f" % [
 			GameState.earned, GameState.cleaned, GameState.streak_multiplier()
 		]
+	_update_management()
 
 
 func _set_shop_btn(btn: Button, name_text: String, level: int, cost: int) -> void:
@@ -953,6 +1227,359 @@ func _set_shop_btn(btn: Button, name_text: String, level: int, cost: int) -> voi
 	else:
 		cost_lbl.text = "$%d" % cost
 		btn.disabled = GameState.cash < cost
+
+
+# ----------------------------------------------------------------- management
+func _set_tab(index: int) -> void:
+	_tab = clampi(index, 0, tab_pages.size() - 1)
+	for i in tab_pages.size():
+		tab_pages[i].visible = i == _tab
+	for i in tab_buttons.size():
+		tab_buttons[i].button_pressed = i == _tab
+	_update_management()
+
+
+func _update_management() -> void:
+	if staff_info_label != null:
+		var hired := 0
+		for kind in GameState.STAFF_KINDS:
+			hired += int(GameState.staff.get(kind, 0))
+		staff_info_label.text = "Staff on payroll: %d   •   Daily wages: $%d" % [hired, GameState.total_wages()]
+	for kind in GameState.STAFF_KINDS:
+		var count := int(GameState.staff.get(kind, 0))
+		var cost := GameState.staff_cost(kind)
+		var hire: Button = staff_hire_btns.get(kind)
+		if hire != null:
+			hire.text = "Hire %s   •   $%d   •   %d hired" % [GameState.staff_name(kind), cost, count]
+			hire.disabled = GameState.cash < cost or (kind == "cashier" and GameState.store_level < 2)
+		var fire: Button = staff_fire_btns.get(kind)
+		if fire != null:
+			fire.disabled = count <= 0
+	if store_info_label != null:
+		store_info_label.text = "Level %d  •  %s\nExpress lane: %s   •   Self-checkout: %s\nDaily rent: $%d" % [
+			GameState.store_level,
+			GameState.store_name(),
+			"OPEN" if GameState.express_lane_open() else "locked (level 2)",
+			"AUTOMATIC" if GameState.self_checkout_interval() > 0.0 else "manual",
+			GameState.RENT_BASE + GameState.store_level * 25,
+		]
+	if store_upgrade_btn != null:
+		var cost := GameState.store_upgrade_cost()
+		if cost < 0:
+			store_upgrade_btn.text = "Store fully upgraded"
+			store_upgrade_btn.disabled = true
+		else:
+			store_upgrade_btn.text = "Upgrade store to level %d   •   $%d" % [GameState.store_level + 1, cost]
+			store_upgrade_btn.disabled = GameState.cash < cost
+	if extra_delivery_btn != null:
+		extra_delivery_btn.text = "Order extra delivery   •   $%d" % GameState.DELIVERY_ORDER_COST
+		extra_delivery_btn.disabled = GameState.cash < GameState.DELIVERY_ORDER_COST
+	if day_end_btn != null:
+		day_end_btn.disabled = not GameState.day_active
+	if stats_info_label != null:
+		stats_info_label.text = "Day %d  •  %s\nRevenue today: $%d   •   Tips: $%d\nServed today: %d   •   Lost: %d\nStocked today: %d   •   Cleaned: %d\nReputation: %s   %.2f / 5.0\nTotal earned: $%d   •   All-time served: %d" % [
+			GameState.day, GameState.clock_text(),
+			GameState.day_revenue, GameState.day_tips,
+			GameState.day_served, GameState.day_lost,
+			GameState.day_stocked, GameState.day_cleaned,
+			GameState.reputation_stars(), GameState.reputation,
+			GameState.earned, GameState.total_served,
+		]
+
+
+func _hire_staff(kind: String) -> void:
+	if GameState.hire_staff(kind):
+		Sfx.play("hire", 1.0, -2.0)
+		show_toast("%s hired  •  $%d/day" % [GameState.staff_name(kind), GameState.staff_wage(kind)])
+	else:
+		Sfx.play("error", 0.8, -8.0)
+		show_toast("Cannot hire %s yet" % GameState.staff_name(kind), Color(1.0, 0.6, 0.45))
+	_update_management()
+
+
+func _fire_staff(kind: String) -> void:
+	if int(GameState.staff.get(kind, 0)) <= 0:
+		return
+	GameState.fire_staff(kind)
+	show_toast("%s let go" % GameState.staff_name(kind), Color(1.0, 0.75, 0.5))
+	_update_management()
+
+
+func _buy_store() -> void:
+	if GameState.try_upgrade_store():
+		Sfx.play("upgrade", 0.95, -2.0)
+		show_toast("Store upgraded to %s!" % GameState.store_name())
+	else:
+		Sfx.play("error", 0.8, -8.0)
+	_update_management()
+
+
+func _order_delivery() -> void:
+	if main != null and main.order_extra_delivery():
+		_update_management()
+	else:
+		Sfx.play("error", 0.8, -8.0)
+		_update_management()
+
+
+func _end_day_now() -> void:
+	if not GameState.day_active:
+		return
+	upgrades_panel.visible = false
+	get_tree().paused = false
+	if main != null:
+		main.end_day_now()
+
+
+func _on_management_changed() -> void:
+	_update_shop()
+
+
+# ---------------------------------------------------------------- checkout HUD
+func _build_checkout_panel() -> void:
+	checkout_panel = PanelContainer.new()
+	checkout_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	checkout_panel.position = Vector2(14, 122)
+	checkout_panel.custom_minimum_size = Vector2(330, 0)
+	checkout_panel.visible = false
+	checkout_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	checkout_panel.add_theme_stylebox_override("panel", _style(Color(0.05, 0.07, 0.10, 0.88), Color(0.4, 0.85, 1.0, 0.4), 12, 12, 1))
+	add_child(checkout_panel)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 5)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	checkout_panel.add_child(v)
+
+	checkout_title = Label.new()
+	checkout_title.text = "CHECKOUT 1"
+	checkout_title.add_theme_font_size_override("font_size", 16)
+	checkout_title.add_theme_color_override("font_color", Color(0.55, 0.9, 1.0))
+	v.add_child(checkout_title)
+
+	checkout_info = Label.new()
+	checkout_info.text = ""
+	checkout_info.add_theme_font_size_override("font_size", 13)
+	checkout_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	checkout_info.custom_minimum_size = Vector2(306, 0)
+	v.add_child(checkout_info)
+
+	checkout_scan_bar = ProgressBar.new()
+	checkout_scan_bar.custom_minimum_size = Vector2(306, 7)
+	checkout_scan_bar.show_percentage = false
+	checkout_scan_bar.max_value = 100.0
+	checkout_scan_bar.add_theme_stylebox_override("background", _style(Color(1, 1, 1, 0.12), Color(0, 0, 0, 0), 4))
+	checkout_scan_bar.add_theme_stylebox_override("fill", _style(Color(0.45, 0.95, 0.6), Color(0, 0, 0, 0), 4))
+	v.add_child(checkout_scan_bar)
+
+	checkout_patience_bar = ProgressBar.new()
+	checkout_patience_bar.custom_minimum_size = Vector2(306, 7)
+	checkout_patience_bar.show_percentage = false
+	checkout_patience_bar.max_value = 100.0
+	checkout_patience_bar.add_theme_stylebox_override("background", _style(Color(1, 1, 1, 0.12), Color(0, 0, 0, 0), 4))
+	checkout_patience_bar.add_theme_stylebox_override("fill", _style(Color(1.0, 0.55, 0.4), Color(0, 0, 0, 0), 4))
+	v.add_child(checkout_patience_bar)
+
+
+func _update_checkout_panel() -> void:
+	if checkout_panel == null:
+		return
+	var lane = null
+	if main != null and not get_tree().paused and not GameState.won:
+		lane = main.active_checkout_for_player()
+	if lane == null:
+		checkout_panel.visible = false
+		return
+	checkout_panel.visible = true
+	checkout_title.text = "%s  •  %s" % [lane.lane_title(), lane.state.to_upper()]
+	var info := ""
+	match lane.state:
+		"arriving":
+			info = "A shopper is walking to the register."
+		"serving":
+			info = "Items left: %d   •   Basket total: $%d\nHOLD E on an item to scan it." % [lane.items.size(), lane.total_price]
+		"waiting_payment":
+			info = "All items scanned  •  $%d\nPress E on the counter to charge." % lane.total_price
+		_:
+			info = "Lane ready  •  waiting for the next shopper."
+	if lane.queue_count() > 0:
+		info += "\nQueue: %d" % lane.queue_count()
+	checkout_info.text = info
+	checkout_scan_bar.value = lane.scan_ratio() * 100.0
+	checkout_patience_bar.value = lane.patience_ratio() * 100.0
+	checkout_patience_bar.visible = lane.state != "idle" and lane.state != "arriving"
+
+
+# ---------------------------------------------------------------- reputation
+func _build_rep_panel() -> void:
+	var center := _make_center()
+	rep_panel = PanelContainer.new()
+	rep_panel.visible = false
+	rep_panel.custom_minimum_size = Vector2(430, 0)
+	rep_panel.add_theme_stylebox_override("panel", _style(Color(0.08, 0.06, 0.04, 0.97), Color(1.0, 0.85, 0.4, 0.5), 18, 22, 2))
+	center.add_child(rep_panel)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	rep_panel.add_child(v)
+
+	var title := Label.new()
+	title.text = "STORE REPUTATION"
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title)
+
+	rep_title = Label.new()
+	rep_title.text = "★★★☆☆"
+	rep_title.add_theme_font_size_override("font_size", 30)
+	rep_title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.35))
+	rep_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(rep_title)
+
+	rep_log_label = Label.new()
+	rep_log_label.text = ""
+	rep_log_label.add_theme_font_size_override("font_size", 14)
+	rep_log_label.modulate = Color(1, 1, 1, 0.8)
+	rep_log_label.custom_minimum_size = Vector2(390, 150)
+	rep_log_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	v.add_child(rep_log_label)
+
+	var hint := Label.new()
+	hint.text = "Reputation raises traffic, patience and tips.\nEmpty shelves, angry shoppers and long queues hurt it."
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.modulate = Color(1, 1, 1, 0.45)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(hint)
+
+	var close := Button.new()
+	close.text = "Close  [R]"
+	close.custom_minimum_size = Vector2(0, 44)
+	_button_styles(close, Color(1.0, 0.85, 0.4))
+	close.pressed.connect(toggle_rep_panel)
+	v.add_child(close)
+
+
+func _update_rep_panel() -> void:
+	if rep_title == null:
+		return
+	rep_title.text = "%s    %.2f / 5.0" % [GameState.reputation_stars(), GameState.reputation]
+	if GameState.rep_log.is_empty():
+		rep_log_label.text = "No reputation events yet."
+	else:
+		var lines: PackedStringArray = []
+		for entry in GameState.rep_log:
+			lines.append("•  " + String(entry))
+		rep_log_label.text = "\n".join(lines)
+
+
+func toggle_rep_panel() -> void:
+	if GameState.won:
+		return
+	if start_banner != null:
+		start_banner.visible = false
+	if upgrades_panel.visible:
+		upgrades_panel.visible = false
+	if pause_panel.visible:
+		pause_panel.visible = false
+	rep_panel.visible = not rep_panel.visible
+	get_tree().paused = rep_panel.visible
+	if rep_panel.visible:
+		_update_rep_panel()
+		player.lock_cursor(false)
+	else:
+		player.lock_cursor(true)
+
+
+func _on_reputation_changed() -> void:
+	_update_topbar()
+	_update_rep_panel()
+
+
+# ------------------------------------------------------------------ day cycle
+func _build_day_panel() -> void:
+	var center := _make_center()
+	day_panel = PanelContainer.new()
+	day_panel.visible = false
+	day_panel.custom_minimum_size = Vector2(500, 0)
+	day_panel.add_theme_stylebox_override("panel", _style(Color(0.04, 0.09, 0.12, 0.98), Color(0.4, 0.85, 1.0, 0.55), 20, 26, 2))
+	center.add_child(day_panel)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	day_panel.add_child(v)
+
+	var title := Label.new()
+	title.text = "DAY COMPLETE"
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title)
+
+	day_summary_label = Label.new()
+	day_summary_label.text = ""
+	day_summary_label.add_theme_font_size_override("font_size", 16)
+	day_summary_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(day_summary_label)
+
+	var next := Button.new()
+	next.text = "Open the store for the next day"
+	next.custom_minimum_size = Vector2(0, 50)
+	_button_styles(next, Color(0.35, 0.9, 0.5))
+	next.pressed.connect(_next_day)
+	v.add_child(next)
+
+
+func _on_day_changed() -> void:
+	_update_topbar()
+	_update_management()
+	_update_checkout_panel()
+
+
+func _on_day_ended(summary: Dictionary) -> void:
+	if GameState.won:
+		return
+	if day_panel == null:
+		return
+	_update_topbar()
+	_update_management()
+	var net: int = int(summary.get("net", 0))
+	var sign_text := "+" if net >= 0 else "-"
+	day_summary_label.text = "Day %d  •  %s\n\nRevenue: $%d   •   Tips: $%d\nCustomers served: %d   •   Lost: %d\nStocked: %d   •   Trash cleaned: %d\nDeliveries unpacked: %d\n\nWages: -$%d   •   Rent: -$%d\nNet: %s$%d\nCash on hand: $%d\nReputation: %s %.2f" % [
+		int(summary.get("day", GameState.day)),
+		GameState.store_name(),
+		int(summary.get("revenue", 0)), int(summary.get("tips", 0)),
+		int(summary.get("served", 0)), int(summary.get("lost", 0)),
+		int(summary.get("stocked", 0)), int(summary.get("cleaned", 0)),
+		int(summary.get("deliveries", 0)),
+		int(summary.get("wages", 0)), int(summary.get("rent", 0)),
+		sign_text, absi(net),
+		int(summary.get("cash", GameState.cash)),
+		GameState.reputation_stars(), float(summary.get("reputation", GameState.reputation)),
+	]
+	day_panel.visible = true
+	get_tree().paused = true
+	if player != null and is_instance_valid(player):
+		player.lock_cursor(false)
+
+
+func _next_day() -> void:
+	day_panel.visible = false
+	get_tree().paused = false
+	if player != null and is_instance_valid(player):
+		player.lock_cursor(true)
+	if main != null:
+		main.start_next_day()
+	_update_topbar()
+	_update_management()
+
+
+func _update_topbar() -> void:
+	if clock_label == null:
+		return
+	clock_label.text = "DAY %d  •  %s" % [GameState.day, GameState.clock_text()]
+	stars_label.text = GameState.reputation_stars()
+	served_label.text = "SERVED %d  •  LOST %d" % [GameState.day_served, GameState.day_lost]
 
 
 func _buy_speed() -> void:
@@ -1009,12 +1636,15 @@ func toggle_upgrades() -> void:
 		start_banner.visible = false
 	if pause_panel.visible:
 		pause_panel.visible = false
+	if rep_panel.visible:
+		rep_panel.visible = false
 	upgrades_panel.visible = not upgrades_panel.visible
 	get_tree().paused = upgrades_panel.visible
 	if upgrades_panel.visible:
 		player.lock_cursor(false)
 		_update_shop()
 		_update_cash()
+		_update_management()
 	else:
 		player.lock_cursor(true)
 
@@ -1037,6 +1667,8 @@ func toggle_pause() -> void:
 
 func show_win() -> void:
 	get_tree().paused = true
+	if day_panel != null:
+		day_panel.visible = false
 	win_panel.visible = true
 	win_stats_label.text = "All 852 products stocked!\nFinal level: 5  •  Clean Champion\nTotal earned: $%d   •   Trash cleaned: %d\nCash on hand: $%d\n\nThanks for playing." % [GameState.earned, GameState.cleaned, GameState.cash]
 	player.lock_cursor(false)
@@ -1050,12 +1682,19 @@ func _restart() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if GameState.won:
 		return
+	if day_panel != null and day_panel.visible:
+		return
 	if event.is_action_pressed("upgrades"):
 		toggle_upgrades()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("reputation"):
+		toggle_rep_panel()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("pause"):
 		if upgrades_panel.visible:
 			toggle_upgrades()
+		elif rep_panel.visible:
+			toggle_rep_panel()
 		else:
 			toggle_pause()
 		get_viewport().set_input_as_handled()

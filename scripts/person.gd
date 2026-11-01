@@ -523,6 +523,30 @@ func _update_idle(delta: float) -> void:
 		_scan_t = fmod(_scan_t + delta, 4.4)
 
 
+# Shared steering for customers and staff. They are pure Node3D actors (no physics
+# body), so a straight step toward the next waypoint is enough and cannot get the
+# store's collision geometry stuck.
+func nav_step(target: Vector3, delta: float, spd: float, stop_dist: float = 0.24) -> bool:
+	var to := target - position
+	to.y = 0.0
+	if to.length() <= stop_dist:
+		_moving = false
+		return true
+	_moving = true
+	rotation.y = lerp_angle(rotation.y, _face_y(to), minf(1.0, delta * 6.5))
+	position += to.normalized() * spd * delta
+	position.y = 0.0
+	_walk_t += delta * spd * 7.2
+	return false
+
+
+func nav_face(target: Vector3, delta: float) -> void:
+	var to := target - position
+	to.y = 0.0
+	if to.length() > 0.01:
+		rotation.y = lerp_angle(rotation.y, _face_y(to), minf(1.0, delta * 7.0))
+
+
 func _animate(delta: float) -> void:
 	if _moving:
 		_animate_walk(delta)

@@ -2,23 +2,37 @@ extends Node3D
 
 const TOTAL := 852
 const TrashScript := preload("res://scripts/trash.gd")
+const CheckoutScript := preload("res://scripts/checkout.gd")
+const CustomerScript := preload("res://scripts/customer.gd")
+const DeliveryScript := preload("res://scripts/delivery.gd")
+const StaffScript := preload("res://scripts/staff.gd")
+
+# Customers walk between the registers and the aisles through this gap.
+const ENTRY_X := 3.6
+const FRONT_Z := 14.15
+const DELIVERY_SPOT := Vector3(-13.6, 0.0, 13.4)
 
 var products_root: Node3D
 var people_root: Node3D
 var trash_root: Node3D
 var shelves: Array[Shelf] = []
 var all_products: Array[Product] = []
-var customers: Array[Person] = []
+var customers: Array = []
 var player: Player
 var ui: CanvasLayer
 var floor_products: Array[Product] = []
 var trash_pieces: Array = []
+var checkouts: Array = []
+var deliveries: Array = []
+var staff_members: Array = []
+var lane_status_labels: Array[Label3D] = []
 
 var _rng := RandomNumberGenerator.new()
-var _customer_paths: Array = []
-var _customer_count: int = 0
 var _checkout_beep: float = 7.0
 var _trash_respawn: float = 18.0
+var _customer_timer: float = 4.0
+var _spawned_today: int = 0
+var _self_checkout_timer: float = 20.0
 var _bill_green: StandardMaterial3D
 var _bill_cream: StandardMaterial3D
 
@@ -33,10 +47,18 @@ func _ready() -> void:
 	_spawn_player()
 	_spawn_products()
 	_build_people()
+	_seed_shelves()
 	_build_cash_pickups()
 	_build_trash()
 	_setup_ui()
 	GameState.level_changed.connect(_on_level_changed)
+	GameState.day_changed.connect(_on_day_changed)
+	GameState.day_ended.connect(_on_day_ended)
+	GameState.staff_changed.connect(_sync_staff)
+	GameState.store_changed.connect(_sync_store)
+	GameState.begin_day()
+	_sync_store()
+	_sync_staff()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if "--capture-test" in OS.get_cmdline_args() or "--capture-test" in OS.get_cmdline_user_args():
 		_capture_and_quit()
@@ -56,6 +78,12 @@ func _process(delta: float) -> void:
 	if GameState.won or get_tree().paused:
 		return
 	GameState.tick_economy(delta)
+	if GameState.day_active:
+		GameState.tick_day(delta)
+		_tick_customers(delta)
+		for lane in checkouts:
+			lane.tick(delta)
+		_tick_self_checkout(delta)
 	_checkout_beep -= delta
 	if _checkout_beep <= 0.0:
 		_checkout_beep = _rng.randf_range(5.0, 13.0)
@@ -128,6 +156,7 @@ func _build_store() -> void:
 	_build_lights()
 	_build_shelves()
 	_build_checkouts()
+	_build_delivery_area()
 	_build_entrance()
 	_build_decor()
 	products_root = Node3D.new()
@@ -396,12 +425,15 @@ func _build_checkouts() -> void:
 	var mat_mat := ProductShapes._mat(Color(0.19, 0.22, 0.21), 0.0, 0.9)
 	var mat_edge := ProductShapes._mat(Color(0.14, 0.34, 0.22), 0.0, 0.75)
 	var open_mat := ProductShapes._mat(Color(0.25, 0.85, 0.36), 0.0, 0.35, 0.9)
-	for i in 3:
+	for i in 4:
 		var cx := -7.0 + i * 7.0
 		_wall_box(Vector3(3.4, 0.02, 2.4), Vector3(cx, 0.012, 12.15), mat_mat, false)
 		_wall_box(Vector3(3.4, 0.012, 0.06), Vector3(cx, 0.025, 10.97), mat_edge, false)
 		_wall_box(Vector3(3.4, 0.012, 0.06), Vector3(cx, 0.025, 13.33), mat_edge, false)
-		_wall_box(Vector3(3.4, 1.0, 1.0), Vector3(cx, 0.5, 11.5), base_mat)
+		var base_mi := _wall_box(Vector3(3.4, 1.0, 1.0), Vector3(cx, 0.5, 11.5), base_mat)
+		var base_body := base_mi.get_parent()
+		base_body.set_meta("is_checkout", true)
+		base_body.set_meta("checkout_lane", i)
 		_wall_box(Vector3(2.2, 0.06, 0.72), Vector3(cx, 1.03, 11.5), belt_mat, false)
 		_wall_box(Vector3(3.0, 0.06, 0.22), Vector3(cx, 1.04, 10.95), pole_mat, false)
 		_wall_box(Vector3(0.5, 0.3, 0.42), Vector3(cx + 1.3, 1.2, 11.5), reg_mat, false)
@@ -446,7 +478,7 @@ func _build_checkouts() -> void:
 		pmi.position = Vector3(cx - 1.5, 1.8, 11.5)
 		add_child(pmi)
 		var sign := Label3D.new()
-		sign.text = "CHECKOUT %d" % (i + 1)
+		sign.text = "EXPRESS 4" if i == 3 else "CHECKOUT %d" % (i + 1)
 		sign.font = ProductShapes.sign_font()
 		sign.font_size = 36
 		sign.pixel_size = 0.004
@@ -455,6 +487,64 @@ func _build_checkouts() -> void:
 		sign.position = Vector3(cx - 1.5, 2.5, 11.5)
 		sign.double_sided = true
 		add_child(sign)
+
+		var status := Label3D.new()
+		status.text = "OPEN"
+		status.font = ProductShapes.sign_font()
+		status.font_size = 28
+		status.pixel_size = 0.0034
+		status.outline_size = 8
+		status.position = Vector3(cx - 1.5, 2.12, 11.5)
+		status.double_sided = true
+		add_child(status)
+		lane_status_labels.append(status)
+
+		var lane = CheckoutScript.new()
+		lane.name = "Checkout%d" % (i + 1)
+		add_child(lane)
+		lane.setup(i, Vector3(cx, 0.0, 11.5))
+		lane.set_enabled(i < 3)
+		checkouts.append(lane)
+
+
+func _build_delivery_area() -> void:
+	var mat_dark := ProductShapes._mat(Color(0.12, 0.24, 0.17), 0.0, 0.9)
+	var mat_edge := ProductShapes._mat(Color(0.35, 0.85, 0.45), 0.0, 0.5, 0.5)
+	var board := ProductShapes._mat(Color(0.10, 0.30, 0.18), 0.1, 0.55)
+	var pole_mat := ProductShapes._mat(Color(0.55, 0.57, 0.60), 0.7, 0.3)
+	_wall_box(Vector3(3.6, 0.02, 2.4), DELIVERY_SPOT + Vector3(0, 0.012, 0), mat_dark, false)
+	_wall_box(Vector3(3.6, 0.014, 0.06), DELIVERY_SPOT + Vector3(0, 0.026, -1.2), mat_edge, false)
+	_wall_box(Vector3(3.6, 0.014, 0.06), DELIVERY_SPOT + Vector3(0, 0.026, 1.2), mat_edge, false)
+	_wall_box(Vector3(0.06, 0.014, 2.4), DELIVERY_SPOT + Vector3(-1.8, 0.026, 0), mat_edge, false)
+	_wall_box(Vector3(0.06, 0.014, 2.4), DELIVERY_SPOT + Vector3(1.8, 0.026, 0), mat_edge, false)
+	for side in [-1.0, 1.0]:
+		var pole := CylinderMesh.new()
+		pole.top_radius = 0.03
+		pole.bottom_radius = 0.03
+		pole.height = 2.5
+		var pmi := MeshInstance3D.new()
+		pmi.mesh = pole
+		pmi.material_override = pole_mat
+		pmi.position = DELIVERY_SPOT + Vector3(side * 1.25, 1.25, 1.55)
+		add_child(pmi)
+	_wall_box(Vector3(2.9, 0.62, 0.08), DELIVERY_SPOT + Vector3(0, 2.55, 1.55), board, false)
+	var sign := Label3D.new()
+	sign.text = "DELIVERIES"
+	sign.font = ProductShapes.sign_font()
+	sign.font_size = 56
+	sign.pixel_size = 0.004
+	sign.outline_size = 12
+	sign.position = DELIVERY_SPOT + Vector3(0, 2.55, 1.50)
+	add_child(sign)
+	var sub := Label3D.new()
+	sub.text = "Open crates with E  •  Order more from the Store tab"
+	sub.font = ProductShapes.sign_font()
+	sub.font_size = 26
+	sub.pixel_size = 0.0028
+	sub.modulate = Color(0.75, 1.0, 0.8)
+	sub.outline_size = 8
+	sub.position = DELIVERY_SPOT + Vector3(0, 2.24, 1.50)
+	add_child(sub)
 
 
 func _build_entrance() -> void:
@@ -1058,53 +1148,252 @@ func _build_people() -> void:
 	people_root.name = "People"
 	add_child(people_root)
 
-	for cx in [-7.0, 0.0, 7.0]:
-		var cashier := Person.new()
-		cashier.configure_static(_rng, Vector3(cx + 1.3, 0, 10.82), PI, true, false)
-		people_root.add_child(cashier)
-		var queued := Person.new()
-		queued.configure_static(_rng, Vector3(cx + 0.2, 0, 13.3), 0.0, false, true)
-		people_root.add_child(queued)
 
-	var central: Array[Vector3] = [
-		Vector3(-6.2, 0, 9.2), Vector3(-6.4, 0, 3.0), Vector3(-8.0, 0, -2.4),
-		Vector3(-6.2, 0, -9.6), Vector3(0.0, 0, -10.6), Vector3(6.2, 0, -9.6),
-		Vector3(8.0, 0, -2.4), Vector3(6.4, 0, 3.0), Vector3(6.2, 0, 9.2),
-	]
-	var left_aisle: Array[Vector3] = [
-		Vector3(-9.6, 0, 2.6), Vector3(-14.0, 0, 2.6), Vector3(-19.8, 0, 2.6),
-		Vector3(-19.8, 0, -6.8), Vector3(-14.0, 0, -6.8), Vector3(-9.6, 0, -6.8),
-	]
-	var right_aisle: Array[Vector3] = [
-		Vector3(9.6, 0, -6.8), Vector3(14.0, 0, -6.8), Vector3(19.8, 0, -6.8),
-		Vector3(19.8, 0, 2.6), Vector3(14.0, 0, 2.6), Vector3(9.6, 0, 2.6),
-	]
-	var front: Array[Vector3] = [
-		Vector3(-4.3, 0, 13.5), Vector3(4.3, 0, 13.5), Vector3(4.6, 0, 9.2),
-		Vector3(0.4, 0, 8.4), Vector3(-4.6, 0, 9.2),
-	]
-	var near: Array[Vector3] = [
-		Vector3(-3.2, 0, 6.2), Vector3(-3.6, 0, 0.8), Vector3(-2.7, 0, -4.2),
-		Vector3(0.0, 0, -7.2), Vector3(4.4, 0, -3.6), Vector3(5.2, 0, 2.0),
-		Vector3(5.2, 0, 6.6), Vector3(0.8, 0, 9.6),
-	]
-	_customer_paths = [central, left_aisle, right_aisle, front, near]
-	_spawn_customer(near, 2, true)
-	_spawn_customer(near, 5, false, true)
-	_spawn_customer(left_aisle, 1, true)
-	_spawn_customer(right_aisle, 4, true)
-	_spawn_customer(front, 2, false)
-	_spawn_customer(central, 5, true)
+func _seed_shelves() -> void:
+	# A brand new store still needs something on the racks or the first shopper
+	# would walk in, find empty shelves and leave angry. Seeded stock is free and
+	# does not count towards the stocking goal.
+	for shelf in shelves:
+		var target := int(float(shelf.capacity_total()) * 0.20)
+		for i in target:
+			shelf.place_product(GameState.DEPARTMENT_COLORS[shelf.department], Vector3.ZERO)
 
 
-func _spawn_customer(path_points: Array[Vector3], start_index: int, basket: bool, cart: bool = false) -> void:
+func _spawn_customer_actor():
 	if people_root == null:
+		return null
+	var shopper = CustomerScript.new()
+	people_root.add_child(shopper)
+	shopper.setup(self, _rng, _rng.randf() < 0.62)
+	customers.append(shopper)
+	_spawned_today += 1
+	return shopper
+
+
+func _tick_customers(delta: float) -> void:
+	for i in range(customers.size() - 1, -1, -1):
+		var c: Person = customers[i]
+		if not is_instance_valid(c) or c.is_queued_for_deletion():
+			customers.remove_at(i)
+	if not GameState.day_active:
 		return
-	var person := Person.new()
-	person.configure_customer(_rng, path_points, start_index, basket, cart)
-	people_root.add_child(person)
-	customers.append(person)
-	_customer_count += 1
+	if _spawned_today >= GameState.daily_customer_target():
+		return
+	if customers.size() >= GameState.max_customers_alive():
+		return
+	_customer_timer -= delta
+	if _customer_timer <= 0.0:
+		var traffic := clampf(GameState.traffic_multiplier(), 0.5, 2.2)
+		_customer_timer = _rng.randf_range(3.4, 6.8) / traffic
+		_spawn_customer_actor()
+
+
+func build_shopping_plan(_shopper) -> Array:
+	var options: Array = []
+	for shelf in shelves:
+		if shelf.stock_count() > 0:
+			options.append(shelf)
+	if options.is_empty():
+		return []
+	options.shuffle()
+	var count := 1
+	if options.size() > 1 and _rng.randf() < 0.55:
+		count = 2
+	var plan: Array = []
+	for i in mini(count, options.size()):
+		var shelf: Shelf = options[i]
+		plan.append({"shelf": shelf, "point": shop_point_for(shelf)})
+	return plan
+
+
+func shop_point_for(shelf: Shelf) -> Vector3:
+	var length: float = shelf.get_meta("shelf_length", 12.0)
+	var off := _rng.randf_range(-length * 0.30, length * 0.30)
+	return shelf.global_transform * Vector3(off, 0.0, 1.15)
+
+
+func shelf_for_department(dept: int) -> Shelf:
+	var best: Shelf = null
+	var best_free := -1
+	for shelf in shelves:
+		if shelf.department != dept:
+			continue
+		var free_slots := shelf.capacity_total() - shelf.stock_count()
+		if free_slots > best_free:
+			best_free = free_slots
+			best = shelf
+	return best
+
+
+func route_to_entrance_floor(from: Vector3) -> Array[Vector3]:
+	return _clean_path(from, [
+		Vector3(ENTRY_X, 0, FRONT_Z),
+		Vector3(ENTRY_X, 0, 9.2),
+		Vector3(0.0, 0, 8.3),
+	])
+
+
+func route_to_shelf(from: Vector3, point: Vector3) -> Array[Vector3]:
+	return _via_front(from, point)
+
+
+func route_to_queue(from: Vector3, lane) -> Array[Vector3]:
+	return _clean_path(from, [
+		Vector3(0.0, 0, 8.3),
+		Vector3(ENTRY_X, 0, 9.2),
+		Vector3(ENTRY_X, 0, FRONT_Z),
+		Vector3(lane.center.x, 0, FRONT_Z),
+		lane.queue_spot(lane.queue_count()),
+	])
+
+
+func route_to_exit(from: Vector3) -> Array[Vector3]:
+	var pts: Array[Vector3] = []
+	if from.z < 9.4:
+		pts.append(Vector3(0.0, 0, 8.3))
+		pts.append(Vector3(ENTRY_X, 0, 9.2))
+	pts.append(Vector3(ENTRY_X, 0, FRONT_Z))
+	pts.append(Vector3(0.0, 0, 15.4))
+	pts.append(Vector3(0.0, 0, 16.6))
+	return _clean_path(from, pts)
+
+
+func route_to_floor(from: Vector3, to: Vector3) -> Array[Vector3]:
+	if from.z > 9.4 or to.z > 9.4:
+		return _via_front(from, to)
+	return _clean_path(from, [to])
+
+
+func _via_front(from: Vector3, target: Vector3) -> Array[Vector3]:
+	var pts: Array[Vector3] = []
+	var from_front := from.z > 9.4
+	var to_front := target.z > 9.4
+	if to_front:
+		pts.append(Vector3(ENTRY_X, 0, FRONT_Z))
+		if not from_front:
+			pts.append(Vector3(ENTRY_X, 0, 9.2))
+		pts.append(Vector3(target.x, 0, FRONT_Z))
+		pts.append(target)
+		return _clean_path(from, pts)
+	if from_front:
+		pts.append(Vector3(ENTRY_X, 0, FRONT_Z))
+		pts.append(Vector3(ENTRY_X, 0, 9.2))
+	pts.append(Vector3(0.0, 0, clampf(target.z, -12.3, 8.4)))
+	pts.append(target)
+	return _clean_path(from, pts)
+
+
+func _clean_path(from: Vector3, pts: Array[Vector3]) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var last := Vector3(from.x, 0.0, from.z)
+	for p in pts:
+		var q := Vector3(p.x, 0.0, p.z)
+		if q.distance_to(last) < 0.30:
+			continue
+		out.append(q)
+		last = q
+	return out
+
+
+func choose_checkout(shopper):
+	var best = null
+	var best_score := 1e9
+	for lane in checkouts:
+		if not lane.enabled:
+			continue
+		if lane.queue_count() >= 5:
+			continue
+		var dist: float = shopper.position.distance_to(lane.center)
+		var score := float(lane.queue_count()) * 3.2 + dist * 0.10
+		if score < best_score:
+			best_score = score
+			best = lane
+	return best
+
+
+func on_empty_shelf(shopper, shelf: Shelf) -> void:
+	GameState.add_reputation(-0.08, "Empty %s shelf" % GameState.DEPARTMENT_NAMES[shelf.department])
+	if ui != null:
+		ui.show_toast("%s shelf is empty — a shopper left" % GameState.DEPARTMENT_NAMES[shelf.department], Color(1.0, 0.5, 0.42))
+	if is_instance_valid(shopper):
+		_spawn_float_text(shopper.global_position + Vector3(0, 1.9, 0), "EMPTY!", Color(1.0, 0.45, 0.4))
+
+
+func cancel_queue(shopper) -> void:
+	if shopper == null or not is_instance_valid(shopper):
+		return
+	var lane = shopper.checkout
+	if lane != null and is_instance_valid(lane):
+		lane.remove_customer(shopper)
+	shopper.checkout = null
+
+
+func on_customer_served(shopper, paid: int) -> void:
+	customers.erase(shopper)
+	if not is_instance_valid(shopper):
+		return
+	Sfx.play("pay", _rng.randf_range(0.96, 1.04), -2.0)
+	_spawn_float_text(shopper.global_position + Vector3(0, 1.95, 0), "+$%d" % paid, Color(0.55, 1.0, 0.72))
+	_spawn_money_burst(shopper.global_position + Vector3(0, 1.35, 0), 3 + paid / 24)
+	if ui != null:
+		ui.show_toast("Sale complete  +$%d" % paid, Color(0.55, 1.0, 0.7))
+
+
+func on_customer_angry(shopper, reason: String) -> void:
+	customers.erase(shopper)
+	GameState.record_lost_customer()
+	Sfx.play("angry", _rng.randf_range(0.92, 1.08), -4.0)
+	var text := "Customer left angry"
+	match reason:
+		"patience":
+			text = "A shopper got tired of waiting"
+		"empty":
+			text = "A shopper found empty shelves"
+		"no_lane":
+			text = "No checkout lane was available"
+	if ui != null:
+		ui.show_toast(text, Color(1.0, 0.45, 0.4))
+	if is_instance_valid(shopper):
+		_spawn_float_text(shopper.global_position + Vector3(0, 1.9, 0), "ANGRY", Color(1.0, 0.35, 0.3))
+
+
+func checkout_by_lane(index: int):
+	if index < 0 or index >= checkouts.size():
+		return null
+	return checkouts[index]
+
+
+func active_checkout_for_player():
+	if player == null or not is_instance_valid(player):
+		return null
+	var p := player.global_position
+	var best = null
+	var best_d := 2.3
+	for lane in checkouts:
+		if not lane.enabled or not lane.is_player_zone(p):
+			continue
+		var d := absf(p.x - lane.center.x)
+		if d < best_d:
+			best_d = d
+			best = lane
+	return best
+
+
+func _tick_self_checkout(delta: float) -> void:
+	var interval := GameState.self_checkout_interval()
+	if interval <= 0.0:
+		return
+	_self_checkout_timer -= delta
+	if _self_checkout_timer > 0.0:
+		return
+	_self_checkout_timer = interval
+	for lane in checkouts:
+		if lane.state == "waiting_payment":
+			lane.charge()
+			return
+		if lane.state == "serving" and not lane.items.is_empty():
+			lane.scan_item(lane.items[0], 10.0)
+			return
 
 
 func _build_cash_pickups() -> void:
@@ -1182,11 +1471,11 @@ func _on_trash_cleaned(pos: Vector3, base: int) -> void:
 
 
 func _spawn_extra_customer() -> void:
-	if _customer_paths.is_empty():
+	if not GameState.day_active:
 		return
-	var path_points: Array[Vector3] = _customer_paths[_customer_count % _customer_paths.size()]
-	var start_index := _rng.randi_range(0, maxi(0, path_points.size() - 1))
-	_spawn_customer(path_points, start_index, _rng.randf() < 0.65)
+	if customers.size() >= GameState.max_customers_alive():
+		return
+	_spawn_customer_actor()
 
 
 func _on_level_changed(new_level: int, bonus: int) -> void:
@@ -1196,6 +1485,206 @@ func _on_level_changed(new_level: int, bonus: int) -> void:
 		_spawn_extra_customer()
 	if player != null and is_instance_valid(player):
 		_spawn_money_burst(player.global_position + Vector3(0, 1.35, 0), 4 + bonus / 25)
+
+
+# ------------------------------------------------------------------ deliveries
+func spawn_delivery() -> void:
+	if deliveries.size() >= 6:
+		return
+	var offsets: Array[Vector3] = [
+		Vector3(-1.05, 0, -0.35), Vector3(0.0, 0, 0.30), Vector3(1.05, 0, -0.35),
+		Vector3(-0.55, 0, 0.55), Vector3(0.55, 0, 0.55), Vector3(0.0, 0, -0.55),
+	]
+	var crate = DeliveryScript.new()
+	crate.position = DELIVERY_SPOT + offsets[deliveries.size() % offsets.size()]
+	add_child(crate)
+	crate.setup(_rng.randi_range(0, 5), _rng.randi_range(10, 16), _rng)
+	crate.opened.connect(_on_delivery_opened)
+	deliveries.append(crate)
+
+
+func open_delivery(crate) -> void:
+	if crate == null or not is_instance_valid(crate):
+		return
+	crate.open()
+
+
+func order_extra_delivery() -> bool:
+	if deliveries.size() >= 6:
+		if ui != null:
+			ui.show_toast("Delivery bay is full — open the crates first", Color(1.0, 0.7, 0.35))
+		return false
+	if not GameState.order_delivery():
+		return false
+	spawn_delivery()
+	Sfx.play("delivery", 0.9, -2.0)
+	if ui != null:
+		ui.show_toast("Extra delivery ordered  -$%d" % GameState.DELIVERY_ORDER_COST, Color(0.6, 0.85, 1.0))
+	return true
+
+
+func _on_delivery_opened(crate) -> void:
+	deliveries.erase(crate)
+	if not is_instance_valid(crate):
+		return
+	for i in crate.count:
+		var angle := TAU * float(i) / float(maxi(1, crate.count))
+		var radius := 0.85 + float(i % 3) * 0.34
+		var pos: Vector3 = crate.global_position + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+		pos.x = clampf(pos.x, -20.0, 20.0)
+		pos.z = clampf(pos.z, -14.0, 14.0)
+		spawn_floor_product(crate.dept, pos, false)
+	GameState.add_reputation(0.01, "Unpacked a delivery")
+	_spawn_float_text(
+		crate.global_position + Vector3(0, 1.15, 0),
+		"%s x%d" % [GameState.DEPARTMENT_NAMES[crate.dept], crate.count],
+		GameState.DEPARTMENT_COLORS[crate.dept].lightened(0.3))
+	if ui != null:
+		ui.show_toast("%s delivery unpacked  •  %d products on the floor" % [GameState.DEPARTMENT_NAMES[crate.dept], crate.count], Color(0.6, 1.0, 0.75))
+
+
+# ---------------------------------------------------------------------- staff
+func _sync_staff() -> void:
+	if people_root == null:
+		return
+	for kind in GameState.STAFF_KINDS:
+		var want := int(GameState.staff.get(kind, 0))
+		var have := 0
+		for member in staff_members:
+			if is_instance_valid(member) and not member.is_queued_for_deletion() and member.kind == kind:
+				have += 1
+		while have < want:
+			var member = StaffScript.new()
+			people_root.add_child(member)
+			member.setup(self, _rng, kind)
+			staff_members.append(member)
+			have += 1
+		while have > want:
+			for i in range(staff_members.size() - 1, -1, -1):
+				var extra: Person = staff_members[i]
+				if is_instance_valid(extra) and extra.kind == kind and not extra.is_queued_for_deletion():
+					extra.queue_free()
+					staff_members.remove_at(i)
+					have -= 1
+					break
+	if checkouts.size() >= 4:
+		var open := GameState.express_lane_open()
+		checkouts[3].staffed = open and int(GameState.staff.get("cashier", 0)) > 0
+
+
+func find_trash_for_staff(member) -> Node:
+	var best: Node = null
+	var best_d := 30.0
+	for piece in trash_pieces:
+		if not is_instance_valid(piece) or piece.is_queued_for_deletion() or piece.is_collected():
+			continue
+		var d: float = piece.global_position.distance_to(member.global_position)
+		if d < best_d:
+			best_d = d
+			best = piece
+	return best
+
+
+func staff_clean(piece: Node) -> void:
+	if piece == null or not is_instance_valid(piece) or piece.is_collected():
+		return
+	piece.value = maxi(1, int(round(float(piece.value) * 0.5)))
+	piece.collect(piece.global_position + Vector3(0, 0.7, 0))
+
+
+func find_product_for_staff(member) -> Product:
+	var best: Product = null
+	var best_d := 34.0
+	for product in floor_products:
+		if not is_instance_valid(product) or product.is_queued_for_deletion():
+			continue
+		var shelf := shelf_for_department(product.department)
+		if shelf == null or not shelf.can_accept():
+			continue
+		var d: float = product.global_position.distance_to(member.global_position)
+		if d < best_d:
+			best_d = d
+			best = product
+	return best
+
+
+func staff_pick_product(product: Product) -> int:
+	if product == null or not is_instance_valid(product):
+		return -1
+	var dept: int = product.department
+	on_product_picked(product)
+	return dept
+
+
+func staff_stock_shelf(member, dept: int) -> void:
+	if dept < 0:
+		return
+	var shelf := shelf_for_department(dept)
+	if shelf == null or not shelf.can_accept():
+		return
+	var near: Vector3 = member.global_position if member != null and is_instance_valid(member) else Vector3.ZERO
+	shelf.place_product(GameState.DEPARTMENT_COLORS[dept], near)
+	var pay := maxi(1, GameState.product_price(dept) / 2)
+	GameState.add_cash(pay)
+	GameState.add_placed(1)
+	Sfx.play("place", 0.9, -8.0)
+	if is_instance_valid(member):
+		_spawn_float_text(member.global_position + Vector3(0, 1.95, 0), "+$%d" % pay, Color(0.6, 1.0, 0.75))
+
+
+# ------------------------------------------------------------------- day cycle
+func _on_day_changed() -> void:
+	_spawned_today = 0
+	_customer_timer = 2.5
+	_self_checkout_timer = 20.0
+	for crate in deliveries.duplicate():
+		if is_instance_valid(crate):
+			crate.queue_free()
+	deliveries.clear()
+	for i in 3:
+		spawn_delivery()
+	for i in 2:
+		_spawn_customer_actor()
+	if ui != null:
+		ui.show_toast("Day %d  •  %s" % [GameState.day, GameState.store_name()], Color(0.6, 1.0, 0.75))
+
+
+func _on_day_ended(_summary: Dictionary) -> void:
+	for shopper in customers.duplicate():
+		if is_instance_valid(shopper):
+			shopper.dismiss()
+	customers.clear()
+	for lane in checkouts:
+		lane.reset_lane()
+	Sfx.play("day_end", 1.0, -2.0)
+
+
+func start_next_day() -> void:
+	if GameState.day_active:
+		return
+	GameState.next_day()
+
+
+func end_day_now() -> void:
+	if not GameState.day_active:
+		return
+	GameState.end_day()
+
+
+func _sync_store() -> void:
+	if checkouts.size() < 4:
+		return
+	var open := GameState.express_lane_open()
+	checkouts[3].set_enabled(open)
+	for i in lane_status_labels.size():
+		var lbl: Label3D = lane_status_labels[i]
+		if i == 3:
+			lbl.text = "EXPRESS • OPEN" if open else "LOCKED • STORE LV 2"
+			lbl.modulate = Color(0.6, 1.0, 0.65) if open else Color(1.0, 0.5, 0.45)
+		else:
+			lbl.text = "OPEN"
+			lbl.modulate = Color(0.6, 1.0, 0.65)
+	checkouts[3].staffed = open and int(GameState.staff.get("cashier", 0)) > 0
 
 
 func _random_floor_position() -> Vector3:
@@ -1219,7 +1708,9 @@ func _is_position_clear(p: Vector3) -> bool:
 		var shelf_len: float = shelf.get_meta("shelf_length", 14.0)
 		if absf(local.x) < shelf_len * 0.5 + 1.2 and absf(local.z) < 1.8:
 			return false
-	if absf(p.z - 11.5) < 2.0 and absf(p.x) < 12.0:
+	if absf(p.z - 11.5) < 2.0 and absf(p.x) < 17.6:
+		return false
+	if absf(p.x - DELIVERY_SPOT.x) < 2.8 and p.z > 11.9:
 		return false
 	if absf(p.z - 14.6) < 1.2 and p.x > -7.0 and p.x < -3.0:
 		return false
@@ -1244,7 +1735,7 @@ func spawn_floor_product(dept: int, pos: Vector3, dropped: bool) -> void:
 	floor_products.append(product)
 
 
-func on_product_picked(product: Product, _p: Player) -> void:
+func on_product_picked(product: Product, _p: Player = null) -> void:
 	all_products.erase(product)
 	floor_products.erase(product)
 	product.queue_free()

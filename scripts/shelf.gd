@@ -11,6 +11,7 @@ var shelf_products: Array[Node3D] = []
 
 var _slots: Array[Transform3D] = []
 var _free_slots: Array[int] = []
+var _placed_slots: Array[int] = []
 var _metal: StandardMaterial3D
 var _glow_material: StandardMaterial3D
 var _glow_meshes: Array[MeshInstance3D] = []
@@ -194,6 +195,32 @@ func can_accept() -> bool:
 	return not _free_slots.is_empty()
 
 
+func stock_count() -> int:
+	return shelf_products.size()
+
+
+func capacity_total() -> int:
+	return _slots.size()
+
+
+func stock_ratio() -> float:
+	return clampf(float(stock_count()) / float(maxi(1, capacity_total())), 0.0, 1.0)
+
+
+# A shopper takes the most recently stocked item off the shelf. The slot goes back
+# into the free list so the player can restock the exact same spot later.
+func take_product() -> int:
+	if shelf_products.is_empty():
+		return -1
+	var holder: Node3D = shelf_products.pop_back()
+	if is_instance_valid(holder):
+		holder.queue_free()
+	if not _placed_slots.is_empty():
+		_free_slots.append(_placed_slots.pop_back())
+	placed_count = maxi(0, placed_count - 1)
+	return department
+
+
 func place_product(color: Color, near: Vector3 = Vector3.ZERO) -> bool:
 	if _free_slots.is_empty():
 		return false
@@ -225,6 +252,7 @@ func place_product(color: Color, near: Vector3 = Vector3.ZERO) -> bool:
 	var tw := create_tween()
 	tw.tween_property(holder, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	shelf_products.append(holder)
+	_placed_slots.append(slot_index)
 	return true
 
 

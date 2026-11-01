@@ -130,6 +130,11 @@ var _tool_pull: float = 0.0
 var _kick_cd: float = 0.0
 var _kick_shape: SphereShape3D
 var _kick_query: PhysicsShapeQueryParameters3D
+var _scan_focus: bool = false
+var _mobile_interact: bool = false
+var _mobile_crouch: bool = false
+var _scanner: Node3D
+var _scan_flash: float = 0.0
 
 
 func _ready() -> void:
@@ -348,6 +353,27 @@ func _build_viewmodel() -> void:
 	_carry_holder.position = HAND_OPEN_TARGET + Vector3(-0.005, 0.018, -0.005)
 	_carry_holder.rotation = Vector3(deg_to_rad(-16.0), deg_to_rad(24.0), deg_to_rad(-8.0))
 	_carry_holder.visible = false
+
+	# Handheld barcode scanner. It only comes up while a belt item is under the
+	# crosshair, so the open hand still does the stocking work.
+	var scan_dark := ProductShapes._mat(Color(0.08, 0.09, 0.11), 0.3, 0.4)
+	var scan_metal := ProductShapes._mat(Color(0.56, 0.58, 0.63), 0.8, 0.28)
+	var scan_red := ProductShapes._mat(Color(1.0, 0.16, 0.12), 0.0, 0.3, 2.4)
+	var scan_green := ProductShapes._mat(Color(0.25, 1.0, 0.45), 0.0, 0.3, 1.9)
+	_scanner = Node3D.new()
+	_scanner.name = "Scanner"
+	_open_pivot.add_child(_scanner)
+	_scanner.position = HAND_OPEN_TARGET + Vector3(0.10, -0.01, -0.02)
+	_scanner.rotation = Vector3(deg_to_rad(-10.0), deg_to_rad(-16.0), 0.0)
+	_scanner.visible = false
+	_add_vm_box(_scanner, Vector3(0.036, 0.105, 0.046), Vector3(0, -0.055, 0.012), scan_dark)
+	_add_vm_box(_scanner, Vector3(0.064, 0.056, 0.135), Vector3(0, 0.012, -0.040), scan_dark)
+	_add_vm_box(_scanner, Vector3(0.050, 0.040, 0.014), Vector3(0, 0.012, -0.110), scan_red)
+	_add_vm_box(_scanner, Vector3(0.020, 0.012, 0.020), Vector3(0, 0.045, -0.040), scan_green)
+	_add_vm_box(_scanner, Vector3(0.044, 0.010, 0.050), Vector3(0, -0.008, -0.040), scan_metal)
+	for mi in _scanner.find_children("*", "MeshInstance3D", true, false):
+		var scan_mi: MeshInstance3D = mi
+		scan_mi.layers = 2
 
 	var fill_light := OmniLight3D.new()
 	fill_light.omni_range = 1.9
@@ -1140,6 +1166,7 @@ func _physics_process(delta: float) -> void:
 		reach += TP_CAM_DIST
 	ray.target_position = Vector3(0, 0, -reach)
 
+	_update_scan(delta)
 	_update_crouch(delta)
 
 	var speed := GameState.player_speed()
@@ -1181,7 +1208,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_crouch(delta: float) -> void:
-	var want_crouch := Input.is_action_pressed("crouch")
+	var want_crouch := Input.is_action_pressed("crouch") or _mobile_crouch
 	if want_crouch:
 		_crouching = true
 	elif _crouching and _can_stand():
@@ -1293,6 +1320,25 @@ func try_interact() -> void:
 	if collider is TrashScript:
 		_collect_trash(collider)
 		return
+	if collider != null:
+		if collider.has_meta("is_delivery"):
+			main.open_delivery(collider)
+			_hand_reach = 0.8
+			return
+		if collider.has_meta("checkout_item"):
+			return
+		if collider.has_meta("is_checkout"):
+			var lane = main.checkout_by_lane(int(collider.get_meta("checkout_lane")))
+			if lane != null:
+				if lane.state == "waiting_payment":
+					var paid: int = lane.charge()
+					if paid > 0:
+						_flash_hint("Charged  +$%d" % paid)
+					else:
+						_flash_hint(lane.prompt_text())
+				else:
+					_flash_hint(lane.prompt_text())
+			return
 	if stack.size() >= GameState.capacity():
 		_flash_hint("Stack full! Upgrade capacity with U")
 		Sfx.play("error", 1.0, -6.0)
@@ -1307,6 +1353,37 @@ func try_interact() -> void:
 		_place_on_shelf(collider)
 	elif collider.get_parent() is Shelf:
 		_place_on_shelf(collider.get_parent())
+
+
+func _update_scan(delta: float) -> void:
+	ray.force_raycast_update()
+	var collider: Object = ray.get_collider() if ray.is_colliding() else null
+	_scan_focus = collider != null and collider.has_meta("checkout_item")
+	if not _scan_focus:
+		return
+	var held := Input.is_action_pressed("interact") or _mobile_interact
+	if not held:
+		return
+	var lane = collider.get_meta("checkout")
+	if lane == null or not is_instance_valid(lane):
+		return
+	if lane.scan_item(collider, delta):
+		_grab_anim = 0.55
+		_hand_reach = 0.45
+		_scan_flash = 1.0
+
+
+func set_mobile_interact(on: bool) -> void:
+	_mobile_interact = on
+
+
+func set_mobile_crouch(on: bool) -> void:
+	_mobile_crouch = on
+
+
+func try_jump() -> void:
+	if is_on_floor() and not _crouching:
+		velocity.y = JUMP_VELOCITY
 
 
 func _collect_trash(piece: TrashScript) -> void:
@@ -1446,6 +1523,16 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	_open_pivot.rotation.x = -0.18 * _hand_reach
 	_open_pivot.rotation.z = 0.05 * _hand_reach
 
+	# Scanner only rises for belt items, and it pops forward a little every time a
+	# barcode is read.
+	_scan_flash = maxf(_scan_flash - delta * 4.0, 0.0)
+	if _scanner != null:
+		_scanner.visible = _scan_focus and mode_ease < 0.5
+		if _scanner.visible:
+			var scan_pop := 1.0 + _scan_flash * 0.10
+			_scanner.scale = _scanner.scale.lerp(Vector3.ONE * scan_pop, minf(delta * 14.0, 1.0))
+			_scanner.position.z = HAND_OPEN_TARGET.z - 0.02 - _scan_flash * 0.035
+
 	_carry_pop = maxf(_carry_pop - delta * 3.0, 0.0)
 	if _carry_holder != null and _carry_holder.visible:
 		var pop := 1.0 + _carry_pop * 0.14
@@ -1484,6 +1571,36 @@ func _update_hint() -> void:
 	var collider := ray.get_collider()
 	if collider == null or not is_instance_valid(collider):
 		_hint_label.visible = false
+		return
+	if collider.has_meta("checkout_item"):
+		var item = collider
+		var dept: int = item.dept
+		var pct := int(round(item.progress * 100.0))
+		_hint_label.text = "[E] Hold  •  Scan %s  •  $%d  •  %d%%" % [
+			GameState.DEPARTMENT_NAMES[dept], item.price, pct
+		]
+		_hint_label.modulate = GameState.DEPARTMENT_COLORS[dept].lightened(0.3)
+		_hint_label.global_position = item.global_position + Vector3(0, 0.42, 0)
+		_hint_label.visible = true
+		return
+	if collider.has_meta("is_delivery"):
+		var crate = collider
+		_hint_label.text = "[E] Open delivery  •  %s x%d" % [
+			GameState.DEPARTMENT_NAMES[crate.dept], crate.count
+		]
+		_hint_label.modulate = GameState.DEPARTMENT_COLORS[crate.dept].lightened(0.3)
+		_hint_label.global_position = crate.global_position + Vector3(0, 1.0, 0)
+		_hint_label.visible = true
+		return
+	if collider.has_meta("is_checkout"):
+		var lane = main.checkout_by_lane(int(collider.get_meta("checkout_lane")))
+		if lane != null:
+			_hint_label.text = lane.prompt_text()
+			_hint_label.modulate = Color(0.65, 0.9, 1.0) if lane.state == "waiting_payment" else Color(1, 1, 1, 0.85)
+			_hint_label.global_position = collider.global_position + Vector3(0, 1.75, 0)
+			_hint_label.visible = true
+		else:
+			_hint_label.visible = false
 		return
 	if collider is Product:
 		var p: Product = collider
