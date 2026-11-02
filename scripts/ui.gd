@@ -90,6 +90,7 @@ func _ready() -> void:
 	_build_rep_panel()
 	_build_day_panel()
 	_build_mobile()
+	_apply_rtl()
 	GameState.cash_changed.connect(_update_cash)
 	GameState.progress_changed.connect(_update_progress)
 	GameState.upgrades_changed.connect(_update_shop)
@@ -114,6 +115,19 @@ func _ready() -> void:
 	_update_earnings()
 	_update_topbar()
 	_update_checkout_panel()
+
+
+func _apply_rtl() -> void:
+	_rtl_walk(self)
+
+
+func _rtl_walk(node: Node) -> void:
+	if node is Label:
+		var lbl := node as Label
+		if lbl.horizontal_alignment == HORIZONTAL_ALIGNMENT_LEFT:
+			lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	for child in node.get_children():
+		_rtl_walk(child)
 
 
 func _style(bg: Color, border: Color = Color(0, 0, 0, 0), radius: int = 12, margin: int = 0, border_w: int = 0) -> StyleBoxFlat:
@@ -179,7 +193,7 @@ func _build_hud() -> void:
 	hbox.add_child(day_wrap)
 
 	clock_label = Label.new()
-	clock_label.text = "DAY 1  •  08:00"
+	clock_label.text = "اليوم 1  •  08:00"
 	clock_label.add_theme_font_size_override("font_size", 15)
 	clock_label.add_theme_color_override("font_color", Color(0.82, 0.93, 1.0))
 	clock_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
@@ -196,7 +210,7 @@ func _build_hud() -> void:
 	day_row.add_child(stars_label)
 
 	served_label = Label.new()
-	served_label.text = "SERVED 0"
+	served_label.text = "مخدوم 0"
 	served_label.add_theme_font_size_override("font_size", 11)
 	served_label.modulate = Color(1, 1, 1, 0.6)
 	served_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -208,7 +222,7 @@ func _build_hud() -> void:
 	hbox.add_child(prog_wrap)
 
 	progress_label = Label.new()
-	progress_label.text = "STOCKED"
+	progress_label.text = "تم الترتيب"
 	progress_label.add_theme_font_size_override("font_size", 12)
 	progress_label.modulate = Color(1, 1, 1, 0.65)
 	prog_wrap.add_child(progress_label)
@@ -222,7 +236,7 @@ func _build_hud() -> void:
 	prog_wrap.add_child(progress_bar)
 
 	capacity_label = Label.new()
-	capacity_label.text = "Carry 0 / 6"
+	capacity_label.text = "الحمل 0 من 6"
 	capacity_label.add_theme_font_size_override("font_size", 18)
 	capacity_label.add_theme_color_override("font_color", Color(1, 0.88, 0.4))
 	capacity_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -240,7 +254,7 @@ func _build_hud() -> void:
 	hbox.add_child(spacer)
 
 	var hints := Label.new()
-	hints.text = "[U] Manage   [R] Reputation   [P] Pause   [V] View   [Tab] Cursor   [Q] Drop"
+	hints.text = "[U] إدارة   [R] السمعة   [P] إيقاف   [V] منظور   [Tab] المؤشر   [Q] رمي"
 	hints.add_theme_font_size_override("font_size", 13)
 	hints.modulate = Color(1, 1, 1, 0.5)
 	hints.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -293,7 +307,7 @@ func _build_earnings_strip() -> void:
 	strip.add_child(row)
 
 	combo_label = Label.new()
-	combo_label.text = "COMBO x1.0"
+	combo_label.text = "كومبو x1.0"
 	combo_label.add_theme_font_size_override("font_size", 15)
 	combo_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.45))
 	combo_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -314,7 +328,7 @@ func _build_earnings_strip() -> void:
 	row.add_child(streak_bar)
 
 	trash_label = Label.new()
-	trash_label.text = "CLEANED 0"
+	trash_label.text = "نظّفت 0"
 	trash_label.add_theme_font_size_override("font_size", 15)
 	trash_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.75, 0.85))
 	trash_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -372,34 +386,34 @@ func _build_start_banner() -> void:
 	panel.add_child(v)
 
 	var lvl := Label.new()
-	lvl.text = "LEVEL %d  •  %s" % [GameState.level, GameState.level_name().to_upper()]
+	lvl.text = "المستوى %d  •  %s" % [GameState.level, GameState.level_name()]
 	lvl.add_theme_font_size_override("font_size", 14)
 	lvl.add_theme_color_override("font_color", Color(0.95, 0.84, 0.42))
 	lvl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(lvl)
 
 	var t1 := Label.new()
-	t1.text = "CLEAN THE"
+	t1.text = "نظّف"
 	t1.add_theme_font_size_override("font_size", 38)
 	t1.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(t1)
 
 	var t2 := Label.new()
-	t2.text = "SUPERMARKET"
+	t2.text = "السوبرماركت"
 	t2.add_theme_font_size_override("font_size", 52)
 	t2.add_theme_color_override("font_color", Color(0.45, 1.0, 0.55))
 	t2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(t2)
 
 	var sub := Label.new()
-	sub.text = "Level goal: stock %d products  •  next level pays +$%d" % [GameState.level_target(), GameState.level_bonus()]
+	sub.text = "هدف المستوى: رتّب %d منتج  •  المستوى الجاي +$%d" % [GameState.level_target(), GameState.level_bonus()]
 	sub.add_theme_font_size_override("font_size", 16)
 	sub.modulate = Color(1, 1, 1, 0.85)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(sub)
 
 	var sub2 := Label.new()
-	sub2.text = "WASD move   •   Space jump   •   Ctrl crouch   •   E hand / grabber   •   V view   •   Chain placements for combo cash"
+	sub2.text = "WASD حركة   •   Space نط   •   Ctrl قرفصاء   •   E يد / عصا   •   V منظور   •   رتّب بسرعة للكومبو"
 	sub2.add_theme_font_size_override("font_size", 13)
 	sub2.modulate = Color(1, 1, 1, 0.55)
 	sub2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -436,23 +450,24 @@ func _build_upgrades_panel() -> void:
 	vbox.add_child(title_row)
 
 	var title := Label.new()
-	title.text = "MANAGEMENT"
+	title.text = "الإدارة"
 	title.add_theme_font_size_override("font_size", 28)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
 
 	upgrades_cash_label = Label.new()
-	upgrades_cash_label.text = "Cash: $0"
+	upgrades_cash_label.text = "الكاش: $0"
 	upgrades_cash_label.add_theme_font_size_override("font_size", 18)
 	upgrades_cash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
 	upgrades_cash_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_row.add_child(upgrades_cash_label)
+	title_row.move_child(upgrades_cash_label, 0)
 
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 6)
 	vbox.add_child(tabs)
 
-	var tab_names: Array[String] = ["UPGRADES", "STAFF", "STORE", "STATS"]
+	var tab_names: Array[String] = ["الترقيات", "الموظفون", "المتجر", "الإحصائيات"]
 	var tab_group := ButtonGroup.new()
 	for i in 4:
 		var tb := Button.new()
@@ -464,6 +479,7 @@ func _build_upgrades_panel() -> void:
 		_button_styles(tb, Color(0.4, 0.85, 1.0))
 		tb.pressed.connect(_set_tab.bind(i))
 		tabs.add_child(tb)
+		tabs.move_child(tb, 0)
 		tab_buttons.append(tb)
 	tab_buttons[0].button_pressed = true
 
@@ -479,31 +495,31 @@ func _build_upgrades_panel() -> void:
 	page0.add_child(shop_stats_label)
 
 	var move_title := Label.new()
-	move_title.text = "MOVEMENT & CARRY"
+	move_title.text = "الحركة والحمل"
 	move_title.add_theme_font_size_override("font_size", 12)
 	move_title.modulate = Color(1, 1, 1, 0.55)
 	page0.add_child(move_title)
 
-	speed_btn = _make_row(page0, "Movement Speed", Color(0.35, 0.9, 0.5), _buy_speed)
-	reach_btn = _make_row(page0, "Interaction Distance", Color(0.4, 0.75, 1.0), _buy_reach)
-	cap_btn = _make_row(page0, "Carrying Capacity", Color(1.0, 0.8, 0.3), _buy_cap)
+	speed_btn = _make_row(page0, "سرعة الحركة", Color(0.35, 0.9, 0.5), _buy_speed)
+	reach_btn = _make_row(page0, "مسافة التفاعل", Color(0.4, 0.75, 1.0), _buy_reach)
+	cap_btn = _make_row(page0, "سعة الحمل", Color(1.0, 0.8, 0.3), _buy_cap)
 
 	var eco_title := Label.new()
-	eco_title.text = "STORE ECONOMY"
+	eco_title.text = "اقتصاد المتجر"
 	eco_title.add_theme_font_size_override("font_size", 12)
 	eco_title.modulate = Color(1, 1, 1, 0.55)
 	page0.add_child(eco_title)
 
-	clean_btn = _make_row(page0, "Cleaning Value", Color(0.55, 1.0, 0.75), _buy_clean)
+	clean_btn = _make_row(page0, "قيمة التنظيف", Color(0.55, 1.0, 0.75), _buy_clean)
 
 	var eco_hint := Label.new()
-	eco_hint.text = "Trash pays +35% per level  •  fast stocking pays up to x3"
+	eco_hint.text = "الزبالة +35% لكل مستوى  •  الترتيب السريع لحد x3"
 	eco_hint.add_theme_font_size_override("font_size", 11)
 	eco_hint.modulate = Color(1, 1, 1, 0.45)
 	page0.add_child(eco_hint)
 
 	var pu_title := Label.new()
-	pu_title.text = "ACTIVE ABILITIES"
+	pu_title.text = "القدرات النشطة"
 	pu_title.add_theme_font_size_override("font_size", 12)
 	pu_title.modulate = Color(1, 1, 1, 0.55)
 	page0.add_child(pu_title)
@@ -521,7 +537,7 @@ func _build_upgrades_panel() -> void:
 		powerup_shop_btns.append(btn)
 
 	var hint := Label.new()
-	hint.text = "Abilities are used in-game with keys 1-4"
+	hint.text = "القدرات بتستخدم في اللعب بمفاتيح 1-4"
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.modulate = Color(1, 1, 1, 0.45)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -549,7 +565,7 @@ func _build_upgrades_panel() -> void:
 	_build_stats_page(page3)
 
 	var close := Button.new()
-	close.text = "Close  [U]"
+	close.text = "إغلاق  [U]"
 	close.custom_minimum_size = Vector2(0, 46)
 	_button_styles(close, Color(0.35, 0.9, 0.5))
 	close.pressed.connect(toggle_upgrades)
@@ -558,7 +574,7 @@ func _build_upgrades_panel() -> void:
 
 func _build_staff_page(page: VBoxContainer) -> void:
 	var head := Label.new()
-	head.text = "HIRE HELP  •  wages are paid at the end of every day"
+	head.text = "وظّف مساعدة  •  المرتبات بتتخصم آخر كل يوم"
 	head.add_theme_font_size_override("font_size", 12)
 	head.modulate = Color(1, 1, 1, 0.55)
 	page.add_child(head)
@@ -588,7 +604,7 @@ func _build_staff_page(page: VBoxContainer) -> void:
 		staff_hire_btns[kind] = hire
 
 		var fire := Button.new()
-		fire.text = "Fire"
+		fire.text = "فصل"
 		fire.custom_minimum_size = Vector2(88, 44)
 		fire.add_theme_font_size_override("font_size", 13)
 		_button_styles(fire, Color(1.0, 0.5, 0.45))
@@ -597,7 +613,7 @@ func _build_staff_page(page: VBoxContainer) -> void:
 		staff_fire_btns[kind] = fire
 
 	var note := Label.new()
-	note.text = "Cleaner picks up trash  •  Stocker moves floor goods onto shelves\nCashier runs the express lane automatically (store level 2+)"
+	note.text = "المنظّف بيجمع الزبالة  •  المرتّب بينقل البضاعة من الأرض للرفوف\nالكاشير بيشغّل الخط السريع أوتوماتيك (مستوى المتجر 2+)"
 	note.add_theme_font_size_override("font_size", 11)
 	note.modulate = Color(1, 1, 1, 0.45)
 	page.add_child(note)
@@ -605,7 +621,7 @@ func _build_staff_page(page: VBoxContainer) -> void:
 
 func _build_store_page(page: VBoxContainer) -> void:
 	var head := Label.new()
-	head.text = "STORE GROWTH"
+	head.text = "توسّع المتجر"
 	head.add_theme_font_size_override("font_size", 12)
 	head.modulate = Color(1, 1, 1, 0.55)
 	page.add_child(head)
@@ -633,7 +649,7 @@ func _build_store_page(page: VBoxContainer) -> void:
 	page.add_child(sep)
 
 	day_end_btn = Button.new()
-	day_end_btn.text = "Close the store now  •  end day"
+	day_end_btn.text = "اقفل المتجر دلوقتي  •  أنهي اليوم"
 	day_end_btn.custom_minimum_size = Vector2(0, 44)
 	day_end_btn.add_theme_font_size_override("font_size", 13)
 	_button_styles(day_end_btn, Color(1.0, 0.75, 0.4))
@@ -641,7 +657,7 @@ func _build_store_page(page: VBoxContainer) -> void:
 	page.add_child(day_end_btn)
 
 	var note := Label.new()
-	note.text = "Store levels unlock the express lane, more shoppers and self-checkout.\nExtra deliveries cost $%d and land in the delivery bay." % GameState.DELIVERY_ORDER_COST
+	note.text = "مستويات المتجر بتفتح الخط السريع وزبائن أكتر وكاشير ذاتي.\nالتوصيل الإضافي بـ $%d وبيوصل منطقة التوصيل." % GameState.DELIVERY_ORDER_COST
 	note.add_theme_font_size_override("font_size", 11)
 	note.modulate = Color(1, 1, 1, 0.45)
 	page.add_child(note)
@@ -649,7 +665,7 @@ func _build_store_page(page: VBoxContainer) -> void:
 
 func _build_stats_page(page: VBoxContainer) -> void:
 	var head := Label.new()
-	head.text = "TODAY & ALL TIME"
+	head.text = "النهارده والإجمالي"
 	head.add_theme_font_size_override("font_size", 12)
 	head.modulate = Color(1, 1, 1, 0.55)
 	page.add_child(head)
@@ -660,7 +676,7 @@ func _build_stats_page(page: VBoxContainer) -> void:
 	page.add_child(stats_info_label)
 
 	var note := Label.new()
-	note.text = "Reputation drives shopper traffic, patience and tips.\nPress R at any time to read the reputation log."
+	note.text = "السمعة بتحرك عدد الزبائن وصبرهم والبقشيش.\nاضغط R في أي وقت عشان تشوف سجل السمعة."
 	note.add_theme_font_size_override("font_size", 11)
 	note.modulate = Color(1, 1, 1, 0.45)
 	page.add_child(note)
@@ -722,20 +738,20 @@ func _build_pause_panel() -> void:
 	pause_panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "PAUSED"
+	title.text = "متوقف مؤقتًا"
 	title.add_theme_font_size_override("font_size", 32)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
 	var resume := Button.new()
-	resume.text = "Resume  [P]"
+	resume.text = "متابعة  [P]"
 	resume.custom_minimum_size = Vector2(0, 48)
 	_button_styles(resume, Color(0.35, 0.9, 0.5))
 	resume.pressed.connect(toggle_pause)
 	vbox.add_child(resume)
 
 	var shop := Button.new()
-	shop.text = "Upgrades  [U]"
+	shop.text = "الإدارة  [U]"
 	shop.custom_minimum_size = Vector2(0, 48)
 	_button_styles(shop, Color(0.4, 0.75, 1.0))
 	shop.pressed.connect(func() -> void:
@@ -746,14 +762,14 @@ func _build_pause_panel() -> void:
 	vbox.add_child(shop)
 
 	var restart := Button.new()
-	restart.text = "Restart"
+	restart.text = "إعادة اللعب"
 	restart.custom_minimum_size = Vector2(0, 48)
 	_button_styles(restart, Color(1.0, 0.8, 0.3))
 	restart.pressed.connect(_restart)
 	vbox.add_child(restart)
 
 	var quit := Button.new()
-	quit.text = "Quit Game"
+	quit.text = "خروج من اللعبة"
 	quit.custom_minimum_size = Vector2(0, 48)
 	_button_styles(quit, Color(1.0, 0.45, 0.45))
 	quit.pressed.connect(func() -> void: get_tree().quit())
@@ -773,7 +789,7 @@ func _build_win_panel() -> void:
 	win_panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "SUPERMARKET CLEAN!"
+	title.text = "السوبرماركت نظيف!"
 	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(0.5, 1, 0.55))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -786,7 +802,7 @@ func _build_win_panel() -> void:
 	vbox.add_child(win_stats_label)
 
 	var btn := Button.new()
-	btn.text = "Play Again"
+	btn.text = "العب تاني"
 	btn.custom_minimum_size = Vector2(0, 50)
 	_button_styles(btn, Color(0.35, 0.9, 0.5))
 	btn.pressed.connect(_restart)
@@ -845,7 +861,7 @@ func _build_mobile() -> void:
 	mobile_root.add_child(interact_btn)
 
 	var jump_btn := Button.new()
-	jump_btn.text = "Jump"
+	jump_btn.text = "نط"
 	jump_btn.add_theme_font_size_override("font_size", 15)
 	_button_styles(jump_btn, Color(0.55, 0.85, 1.0))
 	jump_btn.anchor_left = 1.0
@@ -860,7 +876,7 @@ func _build_mobile() -> void:
 	mobile_root.add_child(jump_btn)
 
 	var crouch_btn := Button.new()
-	crouch_btn.text = "Crouch"
+	crouch_btn.text = "قرفصاء"
 	crouch_btn.add_theme_font_size_override("font_size", 13)
 	_button_styles(crouch_btn, Color(1.0, 0.85, 0.45))
 	crouch_btn.anchor_left = 1.0
@@ -876,7 +892,7 @@ func _build_mobile() -> void:
 	mobile_root.add_child(crouch_btn)
 
 	var drop_btn := Button.new()
-	drop_btn.text = "Drop"
+	drop_btn.text = "رمي"
 	drop_btn.add_theme_font_size_override("font_size", 15)
 	_button_styles(drop_btn, Color(1.0, 0.55, 0.45))
 	drop_btn.anchor_left = 1.0
@@ -891,7 +907,7 @@ func _build_mobile() -> void:
 	mobile_root.add_child(drop_btn)
 
 	var shop_btn := Button.new()
-	shop_btn.text = "Manage"
+	shop_btn.text = "إدارة"
 	shop_btn.add_theme_font_size_override("font_size", 13)
 	_button_styles(shop_btn, Color(0.4, 0.75, 1.0))
 	shop_btn.anchor_left = 1.0
@@ -921,7 +937,7 @@ func _build_mobile() -> void:
 	mobile_root.add_child(pause_btn)
 
 	var view_btn := Button.new()
-	view_btn.text = "View"
+	view_btn.text = "منظور"
 	view_btn.add_theme_font_size_override("font_size", 13)
 	_button_styles(view_btn, Color(0.75, 0.8, 1.0))
 	view_btn.anchor_left = 1.0
@@ -936,7 +952,7 @@ func _build_mobile() -> void:
 	mobile_root.add_child(view_btn)
 
 	var rep_btn := Button.new()
-	rep_btn.text = "Rep"
+	rep_btn.text = "السمعة"
 	rep_btn.add_theme_font_size_override("font_size", 13)
 	_button_styles(rep_btn, Color(1.0, 0.85, 0.4))
 	rep_btn.anchor_left = 1.0
@@ -1025,7 +1041,7 @@ func _update_cash() -> void:
 		return
 	cash_label.text = "$%d" % GameState.cash
 	if upgrades_cash_label != null:
-		upgrades_cash_label.text = "Cash: $%d" % GameState.cash
+		upgrades_cash_label.text = "الكاش: $%d" % GameState.cash
 	if upgrades_panel != null and upgrades_panel.visible:
 		_update_shop()
 	if is_inside_tree() and cash_label.is_inside_tree():
@@ -1046,12 +1062,12 @@ func _update_earnings() -> void:
 		combo_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35) if active else Color(1, 1, 1, 0.45))
 		streak_bar.modulate = Color(1, 1, 1, 1) if active else Color(1, 1, 1, 0.35)
 	if active:
-		combo_label.text = "COMBO x%.1f" % mult
+		combo_label.text = "كومبو x%.1f" % mult
 		streak_bar.value = clampf(GameState.streak_timer / GameState.STREAK_WINDOW, 0.0, 1.0) * 100.0
 	else:
-		combo_label.text = "COMBO x1.0"
+		combo_label.text = "كومبو x1.0"
 		streak_bar.value = 0.0
-	trash_label.text = "CLEANED %d" % GameState.cleaned
+	trash_label.text = "نظّفت %d" % GameState.cleaned
 
 
 func _on_streak_changed() -> void:
@@ -1078,9 +1094,9 @@ func _update_progress() -> void:
 	if progress_label == null:
 		return
 	if GameState.level < GameState.LEVEL_TARGETS.size():
-		progress_label.text = "LV %d  •  %d / %d  •  NEXT %d" % [GameState.level, GameState.placed, GameState.TOTAL_PRODUCTS, GameState.level_target()]
+		progress_label.text = "مستوى %d  •  %d من %d  •  الجاي %d" % [GameState.level, GameState.placed, GameState.TOTAL_PRODUCTS, GameState.level_target()]
 	else:
-		progress_label.text = "LV %d  •  %d / %d  •  FINAL" % [GameState.level, GameState.placed, GameState.TOTAL_PRODUCTS]
+		progress_label.text = "مستوى %d  •  %d من %d  •  النهائي" % [GameState.level, GameState.placed, GameState.TOTAL_PRODUCTS]
 	progress_bar.value = GameState.placed
 	if GameState.won and win_panel != null and not win_panel.visible:
 		show_win()
@@ -1116,14 +1132,14 @@ func _show_level_banner(level: int, bonus: int) -> void:
 	panel.add_child(v)
 
 	var over := Label.new()
-	over.text = "LEVEL UP"
+	over.text = "ارتقاء مستوى"
 	over.add_theme_font_size_override("font_size", 14)
 	over.add_theme_color_override("font_color", Color(0.95, 0.84, 0.42))
 	over.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(over)
 
 	var big := Label.new()
-	big.text = "LEVEL %d" % level
+	big.text = "المستوى %d" % level
 	big.add_theme_font_size_override("font_size", 44)
 	big.add_theme_color_override("font_color", Color(0.55, 1.0, 0.62))
 	big.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1137,9 +1153,9 @@ func _show_level_banner(level: int, bonus: int) -> void:
 
 	var reward := Label.new()
 	if bonus > 0:
-		reward.text = "+$%d bonus  •  new customers arrived" % bonus
+		reward.text = "+$%d مكافأة  •  زبائن جدد وصلوا" % bonus
 	else:
-		reward.text = "Final level  •  stock all 852 products"
+		reward.text = "المستوى النهائي  •  رتّب كل الـ 852 منتج"
 	reward.add_theme_font_size_override("font_size", 14)
 	reward.modulate = Color(1, 1, 1, 0.7)
 	reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1155,12 +1171,12 @@ func _show_level_banner(level: int, bonus: int) -> void:
 func _update_capacity() -> void:
 	if capacity_label == null or player == null:
 		return
-	capacity_label.text = "Carry %d / %d" % [player.stack.size(), GameState.capacity()]
+	capacity_label.text = "الحمل %d من %d" % [player.stack.size(), GameState.capacity()]
 	if player.stack.is_empty():
 		top_item_label.text = ""
 	else:
 		var d: int = player.stack.back()
-		top_item_label.text = "Next: %s  $%d" % [GameState.DEPARTMENT_NAMES[d], GameState.product_price(d)]
+		top_item_label.text = "الجاي: %s  $%d" % [GameState.DEPARTMENT_NAMES[d], GameState.product_price(d)]
 		top_item_label.add_theme_color_override("font_color", GameState.DEPARTMENT_COLORS[d].lightened(0.25))
 
 
@@ -1171,14 +1187,14 @@ func _on_powerup_state(_index: int) -> void:
 func _refresh_powerups() -> void:
 	if powerup_buttons.is_empty():
 		return
-	var short_names: Array[String] = ["REVEAL", "PAIRS", "SHELVES", "SORT"]
+	var short_names: Array[String] = ["إظهار", "زوجين", "أرفف", "ترتيب"]
 	for i in 4:
 		var btn := powerup_buttons[i]
 		var base := "%d  %s" % [i + 1, short_names[i]]
 		if not GameState.powerup_unlocked(i):
 			btn.modulate = Color(1, 1, 1, 0.5)
 			btn.disabled = true
-			btn.text = base + "\nLOCKED"
+			btn.text = base + "\nمقفول"
 		elif GameState.powerup_cooldowns[i] > 0.0:
 			btn.modulate = Color(1, 1, 1, 0.6)
 			btn.disabled = true
@@ -1186,11 +1202,11 @@ func _refresh_powerups() -> void:
 		elif GameState.powerup_active[i] > 0.0:
 			btn.modulate = Color(0.55, 1.0, 0.65, 1.0)
 			btn.disabled = false
-			btn.text = base + "\nACTIVE %.0fs" % ceilf(GameState.powerup_active[i])
+			btn.text = base + "\nشغال %.0fث" % ceilf(GameState.powerup_active[i])
 		else:
 			btn.modulate = Color(1, 1, 1, 0.95)
 			btn.disabled = false
-			btn.text = base + "\nREADY"
+			btn.text = base + "\nجاهز"
 
 
 func _on_powerup_pressed(index: int) -> void:
@@ -1200,14 +1216,14 @@ func _on_powerup_pressed(index: int) -> void:
 func _update_shop() -> void:
 	if upgrades_panel == null or speed_btn == null:
 		return
-	_set_shop_btn(speed_btn, "Movement Speed", GameState.speed_level, GameState.speed_cost())
-	_set_shop_btn(reach_btn, "Interaction Distance", GameState.reach_level, GameState.reach_cost())
-	_set_shop_btn(cap_btn, "Carrying Capacity", GameState.capacity_level, GameState.capacity_cost())
-	_set_shop_btn(clean_btn, "Cleaning Value", GameState.clean_level, GameState.clean_cost())
+	_set_shop_btn(speed_btn, "سرعة الحركة", GameState.speed_level, GameState.speed_cost())
+	_set_shop_btn(reach_btn, "مسافة التفاعل", GameState.reach_level, GameState.reach_cost())
+	_set_shop_btn(cap_btn, "سعة الحمل", GameState.capacity_level, GameState.capacity_cost())
+	_set_shop_btn(clean_btn, "قيمة التنظيف", GameState.clean_level, GameState.clean_cost())
 	for i in 4:
 		_set_shop_btn(powerup_shop_btns[i], GameState.POWERUP_NAMES[i], GameState.powerup_levels[i], GameState.powerup_cost(i))
 	if shop_stats_label != null:
-		shop_stats_label.text = "Earned $%d   •   Trash cleaned %d   •   Combo x%.1f" % [
+		shop_stats_label.text = "المكسب $%d   •   نظّفت %d   •   كومبو x%.1f" % [
 			GameState.earned, GameState.cleaned, GameState.streak_multiplier()
 		]
 	_update_management()
@@ -1219,10 +1235,10 @@ func _set_shop_btn(btn: Button, name_text: String, level: int, cost: int) -> voi
 	var hbox: HBoxContainer = btn.get_child(0)
 	var lbl: Label = hbox.get_node("NameLabel")
 	var cost_lbl: Label = hbox.get_node("CostLabel")
-	var lv_text := "MAX" if cost < 0 else "Lv %d" % level
+	var lv_text := "أقصى" if cost < 0 else "مستوى %d" % level
 	lbl.text = "%s   (%s)" % [name_text, lv_text]
 	if cost < 0:
-		cost_lbl.text = "MAX"
+		cost_lbl.text = "أقصى"
 		btn.disabled = true
 	else:
 		cost_lbl.text = "$%d" % cost
@@ -1244,40 +1260,40 @@ func _update_management() -> void:
 		var hired := 0
 		for kind in GameState.STAFF_KINDS:
 			hired += int(GameState.staff.get(kind, 0))
-		staff_info_label.text = "Staff on payroll: %d   •   Daily wages: $%d" % [hired, GameState.total_wages()]
+		staff_info_label.text = "الموظفون: %d   •   مرتبات اليوم: $%d" % [hired, GameState.total_wages()]
 	for kind in GameState.STAFF_KINDS:
 		var count := int(GameState.staff.get(kind, 0))
 		var cost := GameState.staff_cost(kind)
 		var hire: Button = staff_hire_btns.get(kind)
 		if hire != null:
-			hire.text = "Hire %s   •   $%d   •   %d hired" % [GameState.staff_name(kind), cost, count]
+			hire.text = "وظّف %s   •   $%d   •   متعيّن %d" % [GameState.staff_name(kind), cost, count]
 			hire.disabled = GameState.cash < cost or (kind == "cashier" and GameState.store_level < 2)
 		var fire: Button = staff_fire_btns.get(kind)
 		if fire != null:
 			fire.disabled = count <= 0
 	if store_info_label != null:
-		store_info_label.text = "Level %d  •  %s\nExpress lane: %s   •   Self-checkout: %s\nDaily rent: $%d" % [
+		store_info_label.text = "المستوى %d  •  %s\nالخط السريع: %s   •   الكاشير الذاتي: %s\nإيجار اليوم: $%d" % [
 			GameState.store_level,
 			GameState.store_name(),
-			"OPEN" if GameState.express_lane_open() else "locked (level 2)",
-			"AUTOMATIC" if GameState.self_checkout_interval() > 0.0 else "manual",
+			"مفتوح" if GameState.express_lane_open() else "مقفول (مستوى 2)",
+			"أوتوماتيك" if GameState.self_checkout_interval() > 0.0 else "يدوي",
 			GameState.RENT_BASE + GameState.store_level * 25,
 		]
 	if store_upgrade_btn != null:
 		var cost := GameState.store_upgrade_cost()
 		if cost < 0:
-			store_upgrade_btn.text = "Store fully upgraded"
+			store_upgrade_btn.text = "المتجر مطوّر بالكامل"
 			store_upgrade_btn.disabled = true
 		else:
-			store_upgrade_btn.text = "Upgrade store to level %d   •   $%d" % [GameState.store_level + 1, cost]
+			store_upgrade_btn.text = "طوّر المتجر للمستوى %d   •   $%d" % [GameState.store_level + 1, cost]
 			store_upgrade_btn.disabled = GameState.cash < cost
 	if extra_delivery_btn != null:
-		extra_delivery_btn.text = "Order extra delivery   •   $%d" % GameState.DELIVERY_ORDER_COST
+		extra_delivery_btn.text = "اطلب توصيل إضافي   •   $%d" % GameState.DELIVERY_ORDER_COST
 		extra_delivery_btn.disabled = GameState.cash < GameState.DELIVERY_ORDER_COST
 	if day_end_btn != null:
 		day_end_btn.disabled = not GameState.day_active
 	if stats_info_label != null:
-		stats_info_label.text = "Day %d  •  %s\nRevenue today: $%d   •   Tips: $%d\nServed today: %d   •   Lost: %d\nStocked today: %d   •   Cleaned: %d\nReputation: %s   %.2f / 5.0\nTotal earned: $%d   •   All-time served: %d" % [
+		stats_info_label.text = "اليوم %d  •  %s\nإيراد النهارده: $%d   •   بقشيش: $%d\nمخدومين: %d   •   فايتين: %d\nترتيب النهارده: %d   •   تنظيف: %d\nالسمعة: %s   %.2f من 5.0\nإجمالي المكسب: $%d   •   إجمالي المخدومين: %d" % [
 			GameState.day, GameState.clock_text(),
 			GameState.day_revenue, GameState.day_tips,
 			GameState.day_served, GameState.day_lost,
@@ -1290,10 +1306,10 @@ func _update_management() -> void:
 func _hire_staff(kind: String) -> void:
 	if GameState.hire_staff(kind):
 		Sfx.play("hire", 1.0, -2.0)
-		show_toast("%s hired  •  $%d/day" % [GameState.staff_name(kind), GameState.staff_wage(kind)])
+		show_toast("%s اتوظّف  •  $%d/يوم" % [GameState.staff_name(kind), GameState.staff_wage(kind)])
 	else:
 		Sfx.play("error", 0.8, -8.0)
-		show_toast("Cannot hire %s yet" % GameState.staff_name(kind), Color(1.0, 0.6, 0.45))
+		show_toast("مش قادر توظّف %s لسه" % GameState.staff_name(kind), Color(1.0, 0.6, 0.45))
 	_update_management()
 
 
@@ -1301,14 +1317,14 @@ func _fire_staff(kind: String) -> void:
 	if int(GameState.staff.get(kind, 0)) <= 0:
 		return
 	GameState.fire_staff(kind)
-	show_toast("%s let go" % GameState.staff_name(kind), Color(1.0, 0.75, 0.5))
+	show_toast("تم فصل %s" % GameState.staff_name(kind), Color(1.0, 0.75, 0.5))
 	_update_management()
 
 
 func _buy_store() -> void:
 	if GameState.try_upgrade_store():
 		Sfx.play("upgrade", 0.95, -2.0)
-		show_toast("Store upgraded to %s!" % GameState.store_name())
+		show_toast("المتجر اتطوّر لـ %s!" % GameState.store_name())
 	else:
 		Sfx.play("error", 0.8, -8.0)
 	_update_management()
@@ -1352,7 +1368,7 @@ func _build_checkout_panel() -> void:
 	checkout_panel.add_child(v)
 
 	checkout_title = Label.new()
-	checkout_title.text = "CHECKOUT 1"
+	checkout_title.text = "كاشير 1"
 	checkout_title.add_theme_font_size_override("font_size", 16)
 	checkout_title.add_theme_color_override("font_color", Color(0.55, 0.9, 1.0))
 	v.add_child(checkout_title)
@@ -1391,19 +1407,19 @@ func _update_checkout_panel() -> void:
 		checkout_panel.visible = false
 		return
 	checkout_panel.visible = true
-	checkout_title.text = "%s  •  %s" % [lane.lane_title(), lane.state.to_upper()]
+	checkout_title.text = "%s  •  %s" % [lane.lane_title(), lane.state_name()]
 	var info := ""
 	match lane.state:
 		"arriving":
-			info = "A shopper is walking to the register."
+			info = "زبون بيمشي ناحية الكاشير."
 		"serving":
-			info = "Items left: %d   •   Basket total: $%d\nHOLD E on an item to scan it." % [lane.items.size(), lane.total_price]
+			info = "فاضل منتجات: %d   •   إجمالي السلة: $%d\nاضغط مطوّل E على المنتج عشان تمسحه." % [lane.items.size(), lane.total_price]
 		"waiting_payment":
-			info = "All items scanned  •  $%d\nPress E on the counter to charge." % lane.total_price
+			info = "كل المنتجات اتمسحت  •  $%d\nاضغط E على الكاونتر للتحصيل." % lane.total_price
 		_:
-			info = "Lane ready  •  waiting for the next shopper."
+			info = "الخط جاهز  •  مستني الزبون الجاي."
 	if lane.queue_count() > 0:
-		info += "\nQueue: %d" % lane.queue_count()
+		info += "\nالطابور: %d" % lane.queue_count()
 	checkout_info.text = info
 	checkout_scan_bar.value = lane.scan_ratio() * 100.0
 	checkout_patience_bar.value = lane.patience_ratio() * 100.0
@@ -1424,7 +1440,7 @@ func _build_rep_panel() -> void:
 	rep_panel.add_child(v)
 
 	var title := Label.new()
-	title.text = "STORE REPUTATION"
+	title.text = "سمعة المتجر"
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1446,14 +1462,14 @@ func _build_rep_panel() -> void:
 	v.add_child(rep_log_label)
 
 	var hint := Label.new()
-	hint.text = "Reputation raises traffic, patience and tips.\nEmpty shelves, angry shoppers and long queues hurt it."
+	hint.text = "السمعة بترفع عدد الزبائن وصبرهم والبقشيش.\nالرفوف الفاضية والزبائن الغضبانين والطوابير الطويلة بتقللها."
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.modulate = Color(1, 1, 1, 0.45)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint)
 
 	var close := Button.new()
-	close.text = "Close  [R]"
+	close.text = "إغلاق  [R]"
 	close.custom_minimum_size = Vector2(0, 44)
 	_button_styles(close, Color(1.0, 0.85, 0.4))
 	close.pressed.connect(toggle_rep_panel)
@@ -1465,7 +1481,7 @@ func _update_rep_panel() -> void:
 		return
 	rep_title.text = "%s    %.2f / 5.0" % [GameState.reputation_stars(), GameState.reputation]
 	if GameState.rep_log.is_empty():
-		rep_log_label.text = "No reputation events yet."
+		rep_log_label.text = "مفيش أحداث سمعة لسه."
 	else:
 		var lines: PackedStringArray = []
 		for entry in GameState.rep_log:
@@ -1510,7 +1526,7 @@ func _build_day_panel() -> void:
 	day_panel.add_child(v)
 
 	var title := Label.new()
-	title.text = "DAY COMPLETE"
+	title.text = "اليوم خلص"
 	title.add_theme_font_size_override("font_size", 32)
 	title.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1523,7 +1539,7 @@ func _build_day_panel() -> void:
 	v.add_child(day_summary_label)
 
 	var next := Button.new()
-	next.text = "Open the store for the next day"
+	next.text = "افتح المتجر لليوم التالي"
 	next.custom_minimum_size = Vector2(0, 50)
 	_button_styles(next, Color(0.35, 0.9, 0.5))
 	next.pressed.connect(_next_day)
@@ -1544,8 +1560,8 @@ func _on_day_ended(summary: Dictionary) -> void:
 	_update_topbar()
 	_update_management()
 	var net: int = int(summary.get("net", 0))
-	var sign_text := "+" if net >= 0 else "-"
-	day_summary_label.text = "Day %d  •  %s\n\nRevenue: $%d   •   Tips: $%d\nCustomers served: %d   •   Lost: %d\nStocked: %d   •   Trash cleaned: %d\nDeliveries unpacked: %d\n\nWages: -$%d   •   Rent: -$%d\nNet: %s$%d\nCash on hand: $%d\nReputation: %s %.2f" % [
+	var sign_text := "\u200E+" if net >= 0 else "\u200E-"
+	day_summary_label.text = "اليوم %d  •  %s\n\nالإيراد: $%d   •   البقشيش: $%d\nزبائن مخدومين: %d   •   فايتين: %d\nترتيب: %d   •   تنظيف: %d\nتوصيلات اتفكت: %d\n\nالمرتبات: \u200E-$%d   •   الإيجار: \u200E-$%d\nالصافي: %s$%d\nالكاش المتاح: $%d\nالسمعة: %s %.2f" % [
 		int(summary.get("day", GameState.day)),
 		GameState.store_name(),
 		int(summary.get("revenue", 0)), int(summary.get("tips", 0)),
@@ -1577,15 +1593,15 @@ func _next_day() -> void:
 func _update_topbar() -> void:
 	if clock_label == null:
 		return
-	clock_label.text = "DAY %d  •  %s" % [GameState.day, GameState.clock_text()]
+	clock_label.text = "اليوم %d  •  %s" % [GameState.day, GameState.clock_text()]
 	stars_label.text = GameState.reputation_stars()
-	served_label.text = "SERVED %d  •  LOST %d" % [GameState.day_served, GameState.day_lost]
+	served_label.text = "مخدوم %d  •  فايت %d" % [GameState.day_served, GameState.day_lost]
 
 
 func _buy_speed() -> void:
 	if GameState.try_buy_speed():
 		Sfx.play("upgrade")
-		show_toast("Movement speed upgraded!")
+		show_toast("سرعة الحركة اتطوّرت!")
 	else:
 		Sfx.play("error", 0.8, -8.0)
 	_update_shop()
@@ -1594,7 +1610,7 @@ func _buy_speed() -> void:
 func _buy_reach() -> void:
 	if GameState.try_buy_reach():
 		Sfx.play("upgrade")
-		show_toast("Interaction distance upgraded!")
+		show_toast("مسافة التفاعل اتطوّرت!")
 	else:
 		Sfx.play("error", 0.8, -8.0)
 	_update_shop()
@@ -1603,7 +1619,7 @@ func _buy_reach() -> void:
 func _buy_cap() -> void:
 	if GameState.try_buy_capacity():
 		Sfx.play("upgrade")
-		show_toast("Carrying capacity upgraded!")
+		show_toast("سعة الحمل اتطوّرت!")
 		_update_capacity()
 	else:
 		Sfx.play("error", 0.8, -8.0)
@@ -1613,7 +1629,7 @@ func _buy_cap() -> void:
 func _buy_clean() -> void:
 	if GameState.try_buy_clean():
 		Sfx.play("upgrade")
-		show_toast("Cleaning value upgraded!  Trash now pays more")
+		show_toast("قيمة التنظيف اتطوّرت!  الزبالة بقت تدفع أكتر")
 	else:
 		Sfx.play("error", 0.8, -8.0)
 	_update_shop()
@@ -1622,7 +1638,7 @@ func _buy_clean() -> void:
 func _buy_powerup(index: int) -> void:
 	if GameState.try_buy_powerup(index):
 		Sfx.play("upgrade")
-		show_toast("%s upgraded!" % GameState.POWERUP_NAMES[index])
+		show_toast("%s اتطوّرت!" % GameState.POWERUP_NAMES[index])
 		_refresh_powerups()
 	else:
 		Sfx.play("error", 0.8, -8.0)
@@ -1670,7 +1686,7 @@ func show_win() -> void:
 	if day_panel != null:
 		day_panel.visible = false
 	win_panel.visible = true
-	win_stats_label.text = "All 852 products stocked!\nFinal level: 5  •  Clean Champion\nTotal earned: $%d   •   Trash cleaned: %d\nCash on hand: $%d\n\nThanks for playing." % [GameState.earned, GameState.cleaned, GameState.cash]
+	win_stats_label.text = "كل الـ 852 منتج اترتّبوا!\nالمستوى النهائي: 5  •  بطل النظافة\nإجمالي المكسب: $%d   •   نظّفت: %d\nالكاش المتاح: $%d\n\nشكرًا إنك لعبت." % [GameState.earned, GameState.cleaned, GameState.cash]
 	player.lock_cursor(false)
 
 

@@ -209,6 +209,7 @@ func _ready() -> void:
 	camera.add_child(hand_light)
 
 	_hint_label = Label3D.new()
+	_hint_label.font = ProductShapes.sign_font()
 	_hint_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_hint_label.font_size = 48
 	_hint_label.modulate = Color(1, 1, 1, 0.95)
@@ -1147,9 +1148,9 @@ func toggle_view() -> void:
 	_viewmodel.visible = not third_person
 	_body.visible = third_person
 	if third_person:
-		_flash_hint("Third person view")
+		_flash_hint("منظور ثالث")
 	else:
-		_flash_hint("First person view")
+		_flash_hint("منظور أول")
 
 
 func set_mobile_move(v: Vector2) -> void:
@@ -1333,14 +1334,14 @@ func try_interact() -> void:
 				if lane.state == "waiting_payment":
 					var paid: int = lane.charge()
 					if paid > 0:
-						_flash_hint("Charged  +$%d" % paid)
+						_flash_hint("تم التحصيل  +$%d" % paid)
 					else:
 						_flash_hint(lane.prompt_text())
 				else:
 					_flash_hint(lane.prompt_text())
 			return
 	if stack.size() >= GameState.capacity():
-		_flash_hint("Stack full! Upgrade capacity with U")
+		_flash_hint("الحمل مليان! طوّر السعة من U")
 		Sfx.play("error", 1.0, -6.0)
 		return
 
@@ -1395,7 +1396,7 @@ func _collect_trash(piece: TrashScript) -> void:
 
 func _pick_up_product(product: Product) -> void:
 	if stack.size() >= GameState.capacity():
-		_flash_hint("Stack full!")
+		_flash_hint("الحمل مليان!")
 		Sfx.play("error", 1.1, -6.0)
 		return
 	stack.append(product.department)
@@ -1419,16 +1420,16 @@ func _place_on_shelf(shelf_node: Node) -> void:
 	if shelf == null:
 		return
 	if stack.is_empty():
-		_flash_hint("Pick up products first!")
+		_flash_hint("التقط منتجات الأول!")
 		Sfx.play("error", 0.9, -6.0)
 		return
 	var dept: int = stack.back()
 	if dept != shelf.department:
-		_flash_hint("Wrong shelf! Need %s" % GameState.DEPARTMENT_NAMES[dept])
+		_flash_hint("رف غلط! محتاج %s" % GameState.DEPARTMENT_NAMES[dept])
 		Sfx.play("error", 1.0, -6.0)
 		return
 	if not shelf.can_accept():
-		_flash_hint("Shelf is full!")
+		_flash_hint("الرف مليان!")
 		Sfx.play("error", 1.1, -6.0)
 		return
 	stack.pop_back()
@@ -1576,7 +1577,7 @@ func _update_hint() -> void:
 		var item = collider
 		var dept: int = item.dept
 		var pct := int(round(item.progress * 100.0))
-		_hint_label.text = "[E] Hold  •  Scan %s  •  $%d  •  %d%%" % [
+		_hint_label.text = "اضغط مطوّل E  •  امسح %s  •  $%d  •  %d%%" % [
 			GameState.DEPARTMENT_NAMES[dept], item.price, pct
 		]
 		_hint_label.modulate = GameState.DEPARTMENT_COLORS[dept].lightened(0.3)
@@ -1585,7 +1586,7 @@ func _update_hint() -> void:
 		return
 	if collider.has_meta("is_delivery"):
 		var crate = collider
-		_hint_label.text = "[E] Open delivery  •  %s x%d" % [
+		_hint_label.text = "E  •  افتح التوصيل  •  %s x%d" % [
 			GameState.DEPARTMENT_NAMES[crate.dept], crate.count
 		]
 		_hint_label.modulate = GameState.DEPARTMENT_COLORS[crate.dept].lightened(0.3)
@@ -1605,31 +1606,31 @@ func _update_hint() -> void:
 	if collider is Product:
 		var p: Product = collider
 		if stack.size() < GameState.capacity():
-			_hint_label.text = "[E] Hand  •  Pick up %s" % GameState.DEPARTMENT_NAMES[p.department]
+			_hint_label.text = "E  •  يد  •  التقط %s" % GameState.DEPARTMENT_NAMES[p.department]
 			_hint_label.modulate = GameState.DEPARTMENT_COLORS[p.department].lightened(0.25)
 			_hint_label.visible = true
 		else:
-			_hint_label.text = "Stack full!"
+			_hint_label.text = "الحمل مليان!"
 			_hint_label.modulate = Color(1, 0.4, 0.4)
 			_hint_label.visible = true
 		_hint_label.global_position = p.global_position + Vector3(0, 0.6, 0)
 	elif collider is TrashScript:
 		var trash: TrashScript = collider
 		_ray_trash = true
-		_hint_label.text = "[E] Grabber  •  Clean +$%d" % GameState.trash_payout(trash.value)
+		_hint_label.text = "E  •  عصا  •  نظّف +$%d" % GameState.trash_payout(trash.value)
 		_hint_label.modulate = Color(0.55, 1.0, 0.75)
 		_hint_label.global_position = trash.global_position + Vector3(0, 0.82, 0)
 		_hint_label.visible = true
 	elif collider.has_meta("is_shelf") or collider.get_parent() is Shelf:
 		var shelf: Shelf = collider if collider is Shelf else collider.get_parent()
 		if stack.is_empty():
-			_hint_label.text = "%s shelf" % GameState.DEPARTMENT_NAMES[shelf.department]
+			_hint_label.text = "رف %s" % GameState.DEPARTMENT_NAMES[shelf.department]
 			_hint_label.modulate = shelf.dept_color.lightened(0.15)
 		elif stack.back() == shelf.department:
-			_hint_label.text = "[E] Hand  •  Place %s  •  $%d" % [GameState.DEPARTMENT_NAMES[shelf.department], GameState.product_price(shelf.department)]
+			_hint_label.text = "E  •  يد  •  رتّب %s  •  $%d" % [GameState.DEPARTMENT_NAMES[shelf.department], GameState.product_price(shelf.department)]
 			_hint_label.modulate = Color(0.5, 1, 0.5)
 		else:
-			_hint_label.text = "Need %s shelf" % GameState.DEPARTMENT_NAMES[stack.back()]
+			_hint_label.text = "محتاج رف %s" % GameState.DEPARTMENT_NAMES[stack.back()]
 			_hint_label.modulate = Color(1, 0.5, 0.4)
 		_hint_label.global_position = shelf.global_position + Vector3(0, 3.15, 0)
 		_hint_label.visible = true
@@ -1656,7 +1657,7 @@ func use_powerup(index: int) -> void:
 	match index:
 		0:
 			if stack.is_empty():
-				_flash_hint("Pick up an item first!")
+				_flash_hint("التقط منتج الأول!")
 				Sfx.play("error", 0.9, -6.0)
 				return
 			if GameState.activate_powerup(index):
@@ -1667,7 +1668,7 @@ func use_powerup(index: int) -> void:
 			if GameState.activate_powerup(index):
 				Sfx.play("upgrade")
 				powerup_used.emit(index)
-				_flash_hint("Grab Pairs active!")
+				_flash_hint("قدرة الزوجين شغالة!")
 		2:
 			if GameState.activate_powerup(index):
 				Sfx.play("upgrade")
@@ -1678,7 +1679,7 @@ func use_powerup(index: int) -> void:
 				Sfx.play("upgrade")
 				powerup_used.emit(index)
 				organize_stack()
-				_flash_hint("Stack organized!")
+				_flash_hint("تم ترتيب الحمل!")
 
 
 func organize_stack() -> void:

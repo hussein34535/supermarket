@@ -41,7 +41,21 @@ func setup(lane_index: int, center_pos: Vector3) -> void:
 
 
 func lane_title() -> String:
-	return "CHECKOUT %d" % (lane + 1)
+	if lane == 3:
+		return "كاشير سريع 4"
+	return "كاشير %d" % (lane + 1)
+
+
+func state_name() -> String:
+	match state:
+		"arriving":
+			return "الزبون جاي"
+		"serving":
+			return "جاري المسح"
+		"waiting_payment":
+			return "بانتظار الدفع"
+		_:
+			return "جاهز"
 
 
 func queue_spot(index: int) -> Vector3:
@@ -240,16 +254,16 @@ func tick(delta: float) -> void:
 
 func prompt_text() -> String:
 	if not enabled:
-		return "LANE CLOSED"
+		return "الخط مقفول"
 	match state:
 		"arriving":
-			return "Customer arriving..."
+			return "الزبون جاي..."
 		"serving":
-			return "HOLD E  •  Scan items  •  %d left" % items.size()
+			return "اضغط مطوّل E  •  امسح المنتجات  •  فاضل %d" % items.size()
 		"waiting_payment":
-			return "E on counter  •  Charge $%d" % total_price
+			return "E على الكاونتر  •  تحصيل $%d" % total_price
 		_:
-			return "Lane ready  •  Wait for a customer"
+			return "الخط جاهز  •  استنى الزبون الجاي"
 
 
 func patience_ratio() -> float:

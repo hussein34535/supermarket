@@ -65,6 +65,40 @@ func _ready() -> void:
 
 
 func _capture_and_quit() -> void:
+	var panel := ""
+	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		if arg.begins_with("--capture-panel="):
+			panel = arg.substr("--capture-panel=".length())
+	if ui != null:
+		ui.start_banner.visible = false
+		match panel:
+			"upgrades":
+				ui.toggle_upgrades()
+			"staff":
+				ui.toggle_upgrades()
+				ui._set_tab(1)
+			"store":
+				ui.toggle_upgrades()
+				ui._set_tab(2)
+			"stats":
+				ui.toggle_upgrades()
+				ui._set_tab(3)
+			"rep":
+				ui.toggle_rep_panel()
+			"day":
+				GameState.end_day()
+			"checkout":
+				ui.set_process(false)
+				ui.checkout_panel.visible = true
+				ui.checkout_title.text = "كاشير 1  •  جاري المسح"
+				ui.checkout_info.text = "فاضل منتجات: 5   •   إجمالي السلة: $42\nاضغط مطوّل E على المنتج عشان تمسحه.\nالطابور: 2"
+				ui.checkout_scan_bar.value = 45.0
+				ui.checkout_patience_bar.value = 70.0
+				ui.checkout_patience_bar.visible = true
+			"win":
+				ui.show_win()
+			"pause":
+				ui.toggle_pause()
 	await get_tree().create_timer(1.2).timeout
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
@@ -478,7 +512,7 @@ func _build_checkouts() -> void:
 		pmi.position = Vector3(cx - 1.5, 1.8, 11.5)
 		add_child(pmi)
 		var sign := Label3D.new()
-		sign.text = "EXPRESS 4" if i == 3 else "CHECKOUT %d" % (i + 1)
+		sign.text = "كاشير سريع 4" if i == 3 else "كاشير %d" % (i + 1)
 		sign.font = ProductShapes.sign_font()
 		sign.font_size = 36
 		sign.pixel_size = 0.004
@@ -489,7 +523,7 @@ func _build_checkouts() -> void:
 		add_child(sign)
 
 		var status := Label3D.new()
-		status.text = "OPEN"
+		status.text = "مفتوح"
 		status.font = ProductShapes.sign_font()
 		status.font_size = 28
 		status.pixel_size = 0.0034
@@ -529,7 +563,7 @@ func _build_delivery_area() -> void:
 		add_child(pmi)
 	_wall_box(Vector3(2.9, 0.62, 0.08), DELIVERY_SPOT + Vector3(0, 2.55, 1.55), board, false)
 	var sign := Label3D.new()
-	sign.text = "DELIVERIES"
+	sign.text = "التوصيلات"
 	sign.font = ProductShapes.sign_font()
 	sign.font_size = 56
 	sign.pixel_size = 0.004
@@ -537,7 +571,7 @@ func _build_delivery_area() -> void:
 	sign.position = DELIVERY_SPOT + Vector3(0, 2.55, 1.50)
 	add_child(sign)
 	var sub := Label3D.new()
-	sub.text = "Open crates with E  •  Order more from the Store tab"
+	sub.text = "افتح الكراتين بـ E  •  اطلب المزيد من تبويب المتجر"
 	sub.font = ProductShapes.sign_font()
 	sub.font_size = 26
 	sub.pixel_size = 0.0028
@@ -582,7 +616,7 @@ func _build_entrance() -> void:
 	var board := _wall_box(Vector3(5.6, 0.55, 0.12), Vector3(0, 3.35, door_z - 0.2), ProductShapes._mat(Color(0.1, 0.45, 0.25), 0.1, 0.4, 0.3), false)
 	board.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var welcome := Label3D.new()
-	welcome.text = "WELCOME"
+	welcome.text = "أهلاً وسهلاً"
 	welcome.font = ProductShapes.sign_font()
 	welcome.font_size = 72
 	welcome.pixel_size = 0.0045
@@ -593,7 +627,7 @@ func _build_entrance() -> void:
 	add_child(welcome)
 
 	var exit_label := Label3D.new()
-	exit_label.text = "EXIT"
+	exit_label.text = "خروج"
 	exit_label.font = ProductShapes.sign_font()
 	exit_label.font_size = 40
 	exit_label.pixel_size = 0.004
@@ -728,7 +762,7 @@ func _build_floor_debris() -> void:
 	for side in [-1.0, 1.0]:
 		_wall_box(Vector3(0.06, 0.42, 0.05), sign_pos + Vector3(side * 0.24, 0.21, 0.10), dark, false)
 	var sign_label := Label3D.new()
-	sign_label.text = "CAUTION\nWET FLOOR"
+	sign_label.text = "انتبه\nأرضية مبللة"
 	sign_label.font = ProductShapes.sign_font()
 	sign_label.font_size = 36
 	sign_label.pixel_size = 0.0032
@@ -804,9 +838,9 @@ func _build_aisle_signs() -> void:
 	var gold := ProductShapes._mat(Color(0.93, 0.76, 0.32), 0.3, 0.35, 0.25)
 	var hang := _metal_hang()
 	var spots: Array[Dictionary] = [
-		{"pos": Vector3(-16.0, 3.28, -2.0), "text": "FRUITS  •  DAIRY"},
-		{"pos": Vector3(16.0, 3.28, -2.0), "text": "CLEANING  •  FROZEN"},
-		{"pos": Vector3(0.0, 3.28, -10.8), "text": "SNACKS  •  DRINKS"},
+		{"pos": Vector3(-16.0, 3.28, -2.0), "text": "فواكه  •  ألبان"},
+		{"pos": Vector3(16.0, 3.28, -2.0), "text": "منظفات  •  مجمدات"},
+		{"pos": Vector3(0.0, 3.28, -10.8), "text": "سناكس  •  مشروبات"},
 	]
 	for info in spots:
 		var pos: Vector3 = info["pos"]
@@ -903,7 +937,7 @@ func _build_branding() -> void:
 		_wall_box(Vector3(0.022, 0.3, 0.022), Vector3(side * 3.2, 3.85, -3.5), _metal_hang(), false)
 
 	var title := Label3D.new()
-	title.text = "CLEAN THE SUPERMARKET"
+	title.text = "نظّف السوبرماركت"
 	title.font = ProductShapes.sign_font()
 	title.font_size = 76
 	title.pixel_size = 0.0058
@@ -914,7 +948,7 @@ func _build_branding() -> void:
 	add_child(title)
 
 	var sub := Label3D.new()
-	sub.text = "FRESH   •   DAILY   •   FRIENDLY"
+	sub.text = "طازج   •   يومي   •   ودود"
 	sub.font = ProductShapes.sign_font()
 	sub.font_size = 28
 	sub.pixel_size = 0.0048
@@ -926,7 +960,7 @@ func _build_branding() -> void:
 	back.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_wall_box(Vector3(9.2, 0.035, 0.11), Vector3(0, 2.955, -15.73), gold, false)
 	var back_label := Label3D.new()
-	back_label.text = "CLEAN & FRESH"
+	back_label.text = "نظيف وطازج"
 	back_label.font = ProductShapes.sign_font()
 	back_label.font_size = 52
 	back_label.pixel_size = 0.0052
@@ -1092,7 +1126,7 @@ func _build_sale_signs() -> void:
 	for p in spots:
 		_wall_box(Vector3(1.3, 0.6, 0.05), p + Vector3(0, 3.0, 0), board_mat, false)
 		var lbl := Label3D.new()
-		lbl.text = "SALE"
+		lbl.text = "عرض"
 		lbl.font = ProductShapes.sign_font()
 		lbl.font_size = 56
 		lbl.pixel_size = 0.0035
@@ -1312,11 +1346,11 @@ func choose_checkout(shopper):
 
 
 func on_empty_shelf(shopper, shelf: Shelf) -> void:
-	GameState.add_reputation(-0.08, "Empty %s shelf" % GameState.DEPARTMENT_NAMES[shelf.department])
+	GameState.add_reputation(-0.08, "رف %s فاضي" % GameState.DEPARTMENT_NAMES[shelf.department])
 	if ui != null:
-		ui.show_toast("%s shelf is empty — a shopper left" % GameState.DEPARTMENT_NAMES[shelf.department], Color(1.0, 0.5, 0.42))
+		ui.show_toast("رف %s فضى — زبون مشي" % GameState.DEPARTMENT_NAMES[shelf.department], Color(1.0, 0.5, 0.42))
 	if is_instance_valid(shopper):
-		_spawn_float_text(shopper.global_position + Vector3(0, 1.9, 0), "EMPTY!", Color(1.0, 0.45, 0.4))
+		_spawn_float_text(shopper.global_position + Vector3(0, 1.9, 0), "فاضي!", Color(1.0, 0.45, 0.4))
 
 
 func cancel_queue(shopper) -> void:
@@ -1336,25 +1370,25 @@ func on_customer_served(shopper, paid: int) -> void:
 	_spawn_float_text(shopper.global_position + Vector3(0, 1.95, 0), "+$%d" % paid, Color(0.55, 1.0, 0.72))
 	_spawn_money_burst(shopper.global_position + Vector3(0, 1.35, 0), 3 + paid / 24)
 	if ui != null:
-		ui.show_toast("Sale complete  +$%d" % paid, Color(0.55, 1.0, 0.7))
+		ui.show_toast("تمت البيعة  +$%d" % paid, Color(0.55, 1.0, 0.7))
 
 
 func on_customer_angry(shopper, reason: String) -> void:
 	customers.erase(shopper)
 	GameState.record_lost_customer()
 	Sfx.play("angry", _rng.randf_range(0.92, 1.08), -4.0)
-	var text := "Customer left angry"
+	var text := "زبون مشي غضبان"
 	match reason:
 		"patience":
-			text = "A shopper got tired of waiting"
+			text = "زبون زهق من الانتظار"
 		"empty":
-			text = "A shopper found empty shelves"
+			text = "زبون لقى الرفوف فاضية"
 		"no_lane":
-			text = "No checkout lane was available"
+			text = "مفيش خط دفع متاح"
 	if ui != null:
 		ui.show_toast(text, Color(1.0, 0.45, 0.4))
 	if is_instance_valid(shopper):
-		_spawn_float_text(shopper.global_position + Vector3(0, 1.9, 0), "ANGRY", Color(1.0, 0.35, 0.3))
+		_spawn_float_text(shopper.global_position + Vector3(0, 1.9, 0), "غضبان", Color(1.0, 0.35, 0.3))
 
 
 func checkout_by_lane(index: int):
@@ -1512,14 +1546,14 @@ func open_delivery(crate) -> void:
 func order_extra_delivery() -> bool:
 	if deliveries.size() >= 6:
 		if ui != null:
-			ui.show_toast("Delivery bay is full — open the crates first", Color(1.0, 0.7, 0.35))
+			ui.show_toast("منطقة التوصيل مليانة — افتح الكراتين الأول", Color(1.0, 0.7, 0.35))
 		return false
 	if not GameState.order_delivery():
 		return false
 	spawn_delivery()
 	Sfx.play("delivery", 0.9, -2.0)
 	if ui != null:
-		ui.show_toast("Extra delivery ordered  -$%d" % GameState.DELIVERY_ORDER_COST, Color(0.6, 0.85, 1.0))
+		ui.show_toast("تم طلب توصيل إضافي  -$%d" % GameState.DELIVERY_ORDER_COST, Color(0.6, 0.85, 1.0))
 	return true
 
 
@@ -1534,13 +1568,13 @@ func _on_delivery_opened(crate) -> void:
 		pos.x = clampf(pos.x, -20.0, 20.0)
 		pos.z = clampf(pos.z, -14.0, 14.0)
 		spawn_floor_product(crate.dept, pos, false)
-	GameState.add_reputation(0.01, "Unpacked a delivery")
+	GameState.add_reputation(0.01, "تفكيك توصيل")
 	_spawn_float_text(
 		crate.global_position + Vector3(0, 1.15, 0),
 		"%s x%d" % [GameState.DEPARTMENT_NAMES[crate.dept], crate.count],
 		GameState.DEPARTMENT_COLORS[crate.dept].lightened(0.3))
 	if ui != null:
-		ui.show_toast("%s delivery unpacked  •  %d products on the floor" % [GameState.DEPARTMENT_NAMES[crate.dept], crate.count], Color(0.6, 1.0, 0.75))
+		ui.show_toast("توصيل %s اتفك  •  %d منتج على الأرض" % [GameState.DEPARTMENT_NAMES[crate.dept], crate.count], Color(0.6, 1.0, 0.75))
 
 
 # ---------------------------------------------------------------------- staff
@@ -1646,7 +1680,7 @@ func _on_day_changed() -> void:
 	for i in 2:
 		_spawn_customer_actor()
 	if ui != null:
-		ui.show_toast("Day %d  •  %s" % [GameState.day, GameState.store_name()], Color(0.6, 1.0, 0.75))
+		ui.show_toast("اليوم %d  •  %s" % [GameState.day, GameState.store_name()], Color(0.6, 1.0, 0.75))
 
 
 func _on_day_ended(_summary: Dictionary) -> void:
@@ -1679,10 +1713,10 @@ func _sync_store() -> void:
 	for i in lane_status_labels.size():
 		var lbl: Label3D = lane_status_labels[i]
 		if i == 3:
-			lbl.text = "EXPRESS • OPEN" if open else "LOCKED • STORE LV 2"
+			lbl.text = "سريع • مفتوح" if open else "مقفول • متجر 2"
 			lbl.modulate = Color(0.6, 1.0, 0.65) if open else Color(1.0, 0.5, 0.45)
 		else:
-			lbl.text = "OPEN"
+			lbl.text = "مفتوح"
 			lbl.modulate = Color(0.6, 1.0, 0.65)
 	checkouts[3].staffed = open and int(GameState.staff.get("cashier", 0)) > 0
 
@@ -1755,9 +1789,9 @@ func on_product_placed(shelf: Shelf, dept: int, at: Vector3 = Vector3.ZERO) -> v
 	_spawn_float_text(shelf.global_position + Vector3(0, 2.1, 0), cash_text, cash_color)
 	_spawn_money_bill(shelf.global_position + Vector3(_rng.randf_range(-0.8, 0.8), 1.9, _rng.randf_range(-0.2, 0.2)))
 	if GameState.streak == 6:
-		ui.show_toast("COMBO x3.0  •  chain bonus maxed", Color(1.0, 0.88, 0.4))
+		ui.show_toast("كومبو x3.0  •  أقصى مكافأة تسلسل", Color(1.0, 0.88, 0.4))
 	if GameState.placed % 50 == 0 and GameState.placed < TOTAL:
-		ui.show_toast("%d / %d stocked!" % [GameState.placed, GameState.TOTAL_PRODUCTS], Color(0.55, 1.0, 0.6))
+		ui.show_toast("تم ترتيب %d / %d!" % [GameState.placed, GameState.TOTAL_PRODUCTS], Color(0.55, 1.0, 0.6))
 		Sfx.play("milestone")
 	if GameState.placed >= TOTAL:
 		_on_won()

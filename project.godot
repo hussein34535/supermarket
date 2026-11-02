@@ -119,6 +119,10 @@ powerup_4={
 ]
 }
 
+[gui]
+
+theme/custom_font="res://assets/fonts/Cairo.ttf"
+
 [rendering]
 
 anti_aliasing/quality/msaa_3d=2

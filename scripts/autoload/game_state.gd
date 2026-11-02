@@ -19,10 +19,10 @@ const TOTAL_PRODUCTS: int = 852
 const LEVEL_TARGETS: Array[int] = [100, 250, 450, 650, 852]
 const LEVEL_BONUSES: Array[int] = [50, 100, 150, 250, 0]
 const LEVEL_NAMES: PackedStringArray = [
-	"Rookie Stocker", "Aisle Apprentice", "Shelf Pro", "Store Expert", "Clean Champion"
+	"مبتدئ الترتيب", "تلميذ الأرفف", "محترف الأرفف", "خبير المتجر", "بطل النظافة"
 ]
 const DEPARTMENT_NAMES: PackedStringArray = [
-	"Fruits", "Dairy", "Drinks", "Snacks", "Cleaning", "Frozen"
+	"فواكه", "ألبان", "مشروبات", "سناكس", "منظفات", "مجمدات"
 ]
 const DEPARTMENT_COLORS: Array[Color] = [
 	Color(0.25, 0.78, 0.32),
@@ -51,7 +51,7 @@ const RENT_BASE: int = 40
 # ------------------------------------------------------------------- staff
 const STAFF_KINDS: PackedStringArray = ["cleaner", "stocker", "cashier"]
 const STAFF_NAMES: Dictionary = {
-	"cleaner": "Cleaner", "stocker": "Stocker", "cashier": "Cashier"
+	"cleaner": "منظّف", "stocker": "مرتّب بضاعة", "cashier": "كاشير"
 }
 const STAFF_COSTS: Dictionary = {"cleaner": 150, "stocker": 250, "cashier": 400}
 const STAFF_WAGES: Dictionary = {"cleaner": 20, "stocker": 30, "cashier": 40}
@@ -59,7 +59,7 @@ const STAFF_WAGES: Dictionary = {"cleaner": 20, "stocker": 30, "cashier": 40}
 # ------------------------------------------------------------------- store
 const STORE_COSTS: Array[int] = [0, 800, 1800, 3500]
 const STORE_NAMES: PackedStringArray = [
-	"Corner Store", "Neighbourhood Market", "Supermarket", "Superstore"
+	"بقالة الحي", "سوق الحي", "سوبرماركت", "سوبر ستور"
 ]
 const DELIVERY_ORDER_COST: int = 120
 
@@ -83,7 +83,7 @@ var powerup_cooldowns: Array[float] = [0.0, 0.0, 0.0, 0.0]
 var powerup_active: Array[float] = [0.0, 0.0, 0.0, 0.0]
 
 const POWERUP_NAMES: PackedStringArray = [
-	"Reveal Matching", "Grab Pairs", "Find Shelves", "Organize Load"
+	"إظهار المتطابق", "التقاط زوجين", "تحديد الأرفف", "ترتيب الحمل"
 ]
 const POWERUP_KEYS: PackedStringArray = ["1", "2", "3", "4"]
 
@@ -251,7 +251,7 @@ func add_cleaned(n: int = 1) -> void:
 	cleaned += n
 	day_cleaned += n
 	cleaned_changed.emit()
-	add_reputation(0.006, "Cleaned the floor")
+	add_reputation(0.006, "تنظيف الأرضية")
 
 func tick_economy(delta: float) -> void:
 	if streak <= 0:
@@ -358,12 +358,12 @@ func record_sale(total: int, tip: int) -> void:
 	day_served += 1
 	total_served += 1
 	add_cash(total + tip)
-	add_reputation(0.012, "Served a customer")
+	add_reputation(0.012, "خدمة زبون")
 	served_changed.emit()
 
 func record_lost_customer() -> void:
 	day_lost += 1
-	add_reputation(-0.12, "A customer left angry")
+	add_reputation(-0.12, "زبون مشي غضبان")
 	served_changed.emit()
 
 func add_reputation(v: float, reason: String = "") -> void:

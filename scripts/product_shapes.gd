@@ -4,14 +4,12 @@ extends RefCounted
 const ROT := PI * 0.5
 
 static var _mat_cache: Dictionary = {}
-static var _sign_font: SystemFont
+static var _sign_font: Font
 
 
-static func sign_font() -> SystemFont:
+static func sign_font() -> Font:
 	if _sign_font == null:
-		_sign_font = SystemFont.new()
-		_sign_font.font_names = PackedStringArray(["Bahnschrift", "Segoe UI", "Arial"])
-		_sign_font.font_weight = 700
+		_sign_font = load("res://assets/fonts/Cairo.ttf")
 	return _sign_font
 
 
