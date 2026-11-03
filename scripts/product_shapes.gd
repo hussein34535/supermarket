@@ -51,6 +51,8 @@ static func _add(parent: Node3D, mesh: Mesh, mat: Material, pos: Vector3, rot: V
 	mi.material_override = mat
 	mi.position = pos
 	mi.rotation = rot
+	# Hundreds of thumbnail-sized goods on the floor are not worth a shadow pass.
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 	return mi
 

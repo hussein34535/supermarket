@@ -70,7 +70,8 @@ func _capture_and_quit() -> void:
 		if arg.begins_with("--capture-panel="):
 			panel = arg.substr("--capture-panel=".length())
 	if ui != null:
-		ui.start_banner.visible = false
+		if panel != "":
+			ui.start_banner.visible = false
 		match panel:
 			"upgrades":
 				ui.toggle_upgrades()
@@ -100,6 +101,11 @@ func _capture_and_quit() -> void:
 			"pause":
 				ui.toggle_pause()
 	await get_tree().create_timer(1.2).timeout
+	if ui != null and ui.upgrades_panel != null and ui.upgrades_panel.visible:
+		print("DBG viewport=", get_viewport().get_visible_rect(), " hub=", ui.upgrades_panel.get_global_rect(), " min=", ui.upgrades_panel.get_combined_minimum_size(), " rtl=", ui.upgrades_panel.is_layout_rtl())
+		print("DBG row=", ui.speed_btn.get_node("Row").get_global_rect())
+		for child in ui.speed_btn.get_node("Row").get_children():
+			print("DBG child ", child.name, " ", child.get_global_rect())
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	if img != null:
@@ -1217,9 +1223,24 @@ func _tick_customers(delta: float) -> void:
 		return
 	_customer_timer -= delta
 	if _customer_timer <= 0.0:
-		var traffic := clampf(GameState.traffic_multiplier(), 0.5, 2.2)
-		_customer_timer = _rng.randf_range(3.4, 6.8) / traffic
+		_customer_timer = _next_customer_gap()
 		_spawn_customer_actor()
+
+
+# Spreads the day's shoppers across the whole opening window. The old fixed
+# 3-7s gap spawned the entire daily budget in the first minute and left the
+# store deserted for the remaining five.
+func _next_customer_gap() -> float:
+	var target: int = GameState.daily_customer_target()
+	var left: int = maxi(0, target - _spawned_today)
+	var span: float = GameState.DAY_END_HOUR - GameState.DAY_START_HOUR
+	var done: float = clampf((GameState.clock - GameState.DAY_START_HOUR) / maxf(0.01, span), 0.0, 1.0)
+	var time_left: float = (1.0 - done) * GameState.DAY_REAL_SECONDS
+	var gap := 10.0
+	if left > 0:
+		gap = time_left / float(left)
+	var traffic := clampf(GameState.traffic_multiplier(), 0.6, 2.0)
+	return clampf(gap / traffic, 3.0, 45.0)
 
 
 func build_shopping_plan(_shopper) -> Array:
@@ -1346,7 +1367,8 @@ func choose_checkout(shopper):
 
 
 func on_empty_shelf(shopper, shelf: Shelf) -> void:
-	GameState.add_reputation(-0.08, "رف %s فاضي" % GameState.DEPARTMENT_NAMES[shelf.department])
+	# No reputation change here: on_customer_angry() applies the single -0.08 hit
+	# when the shopper actually leaves, so the log stays readable.
 	if ui != null:
 		ui.show_toast("رف %s فضى — زبون مشي" % GameState.DEPARTMENT_NAMES[shelf.department], Color(1.0, 0.5, 0.42))
 	if is_instance_valid(shopper):
@@ -1375,16 +1397,23 @@ func on_customer_served(shopper, paid: int) -> void:
 
 func on_customer_angry(shopper, reason: String) -> void:
 	customers.erase(shopper)
-	GameState.record_lost_customer()
+	# The reputation hit happens once, here, scaled by the reason. The empty-shelf
+	# path used to subtract twice (-0.08 then -0.12) for a single lost customer.
+	var rep_delta := -0.12
+	var rep_reason := "زبون مشي غضبان"
 	Sfx.play("angry", _rng.randf_range(0.92, 1.08), -4.0)
 	var text := "زبون مشي غضبان"
 	match reason:
 		"patience":
 			text = "زبون زهق من الانتظار"
+			rep_reason = "زبون زهق من الانتظار"
 		"empty":
 			text = "زبون لقى الرفوف فاضية"
+			rep_delta = -0.08
+			rep_reason = "رف فاضي"
 		"no_lane":
 			text = "مفيش خط دفع متاح"
+	GameState.record_lost_customer(rep_delta, rep_reason)
 	if ui != null:
 		ui.show_toast(text, Color(1.0, 0.45, 0.4))
 	if is_instance_valid(shopper):
@@ -1496,7 +1525,7 @@ func _spawn_trash_piece() -> void:
 
 func _on_trash_cleaned(pos: Vector3, base: int) -> void:
 	var payout := GameState.trash_payout(base)
-	GameState.add_cash(payout)
+	GameState.add_cash(payout, "clean")
 	GameState.add_cleaned(1)
 	Sfx.play("cash", randf_range(1.0, 1.2), -2.0)
 	_spawn_float_text(pos + Vector3(0, 0.55, 0), "+$%d" % payout, Color(0.55, 1.0, 0.75))
@@ -1659,7 +1688,7 @@ func staff_stock_shelf(member, dept: int) -> void:
 	var near: Vector3 = member.global_position if member != null and is_instance_valid(member) else Vector3.ZERO
 	shelf.place_product(GameState.DEPARTMENT_COLORS[dept], near)
 	var pay := maxi(1, GameState.product_price(dept) / 2)
-	GameState.add_cash(pay)
+	GameState.add_cash(pay, "stock")
 	GameState.add_placed(1)
 	Sfx.play("place", 0.9, -8.0)
 	if is_instance_valid(member):
@@ -1778,7 +1807,7 @@ func on_product_picked(product: Product, _p: Player = null) -> void:
 func on_product_placed(shelf: Shelf, dept: int, at: Vector3 = Vector3.ZERO) -> void:
 	shelf.place_product(GameState.DEPARTMENT_COLORS[dept], at if at != Vector3.ZERO else player.global_position)
 	var payout := GameState.register_placement(dept)
-	GameState.add_cash(payout)
+	GameState.add_cash(payout, "stock")
 	GameState.add_placed(1)
 	Sfx.play("place", randf_range(0.95, 1.08))
 	var mult := GameState.streak_multiplier()

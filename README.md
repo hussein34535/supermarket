@@ -160,12 +160,17 @@ project.godot
 scenes/main.tscn
 run.bat
 docs/ROADMAP.md             # خطة الدمج الكبيرة
-assets/models/grabber.glb    # أداة التقاط واقعية (GLB)
-assets/models/character.glb  # شخصية اللاعب (GLB) — منها قفازات الأيدي
-assets/models/glove_left.obj   # قفاز اليد اليمنى (مستخرج من الشخصية)
-assets/models/glove_right.obj  # قفاز اليد اليسرى (مستخرج من الشخصية)
+docs/PROJECT-ANALYSIS.md    # تحليل المشروع (معمارية + مشاكل + خطة)
+assets/models/arms_rigged.glb     # الذراعين (GLB) — 6.4MB بعد التحسين
+assets/models/character.glb       # جسم اللاعب (GLB) — 1.2MB
+assets/models/grabber.glb         # أداة التقاط واقعية (GLB) — 0.9MB
+assets/models/arm_left_mesh.res   # قفاز اليد اليمنى (مقصوص من الذراعين)
+assets/models/arm_right_mesh.res  # قفاز اليد اليسرى (مقصوص من الذراعين)
+assets/models/props/cleaner_bottle.glb  # قارورة منظف مجسّمة (منتج في قسم المنظفات) — 79KB
+assets/models/props/tomato_tray.glb     # صينية طماطم مجسّمة (منتج في قسم الفواكه) — 235KB
 assets/shaders/character_walk.gdshader  # حركة المشي الإجرائية للشخصية
 assets/fonts/Cairo.ttf       # خط عربي (SIL OFL) لكل الواجهة ولافتات 3D
+tools/model_pipeline/         # خط تحسين الأصول (gltf-transform + Godot mesh tool)
 scripts/
   autoload/game_state.gd   # الحالة العامة: كاش، ترقيات، قدرات، يوم، سمعة، موظفين، متجر
   main.gd                  # بناء المتجر + الكاشير + التوصيلات + الزبائن + الموظفين + اليوم
@@ -183,6 +188,38 @@ scripts/
   sfx.gd                   # مؤثرات صوتية إجرائية + همهمة المتجر
   ui.gd                    # HUD + لوحة الإدارة + الكاشير + السمعة + ملخص اليوم + الموبايل
 ```
+
+## الأصول ثلاثية الأبعاد
+
+المشروع كان بيشيل **405 ميجا** موديلات ونسائج، بقوا **~16 ميجا** بعد خط التحسين (تخفيض 96%) بدون أي فرق بصري ملحوظ:
+
+| الأصل | قبل | بعد | الطريقة |
+|---|---|---|---|
+| `arms_rigged.glb` (الذراعين) | 77 ميجا · 1.5M مثلث | **6.4 ميجا** · 150K مثلث | weld → simplify → 1024 → WebP |
+| `arm_left_mesh.res` | 25.6 ميجا · 748K مثلث | **1.75 ميجا** · 39K مثلث | قَصّ من الشبكة المحسّنة |
+| `arm_right_mesh.res` | 25.6 ميجا · 752K مثلث | **4.3 ميجا** · 110K مثلث | قَصّ من الشبكة المحسّنة |
+| `character.glb` (جسم اللاعب) | 75 ميجا · 1.5M مثلث | **1.2 ميجا** · 30K مثلث | weld → simplify → 1024 → WebP |
+| `grabber.glb` (الأداة) | 37 ميجا · 500K مثلث | **0.87 ميجا** · 25K مثلث | weld → simplify → 512 → WebP |
+| نسائج الجلد (6 ملفات PNG) | 57 ميجا | **0.36 ميجا** | 1024 WebP |
+| `cleaner_bottle.glb` (جديد) | 30.7 ميجا | **79 كيلو** · 1K مثلث | من `Downloads` |
+| `tomato_tray.glb` (جديد) | 25.4 ميجا | **235 كيلو** · 4K مثلث | من `Downloads` |
+| `worker_rigged.glb` + قفازات قديمة | 84 ميجا | **محذوفة** | غير مستخدمة |
+
+خط التحسين موجود في `tools/model_pipeline/`:
+
+```bash
+# مرة واحدة: تنزيل gltf-transform
+node <pnpm> add --dir tools/model_pipeline --config.node-linker=hoisted @gltf-transform/cli
+
+# إعادة بناء كل الأصول
+pwsh -File tools/model_pipeline/build_assets.ps1
+
+# بعدها: إعادة الاستيراد + قصّ الذراعين
+godot --headless --path . --import
+godot --headless --path . --script res://tools/model_pipeline/mesh_tool.gd -- split res://assets/models/arms_rigged.glb res://assets/models/arm_left_mesh.res res://assets/models/arm_right_mesh.res 0
+```
+
+> **مهم:** Godot 4 مش بيدعم ضغط Draco ولا meshopt، فأي GLB مضغوط بيهم مش هيتفتح — عشان كده الخط بيستخدم WebP للنسائج + تبسيط الشبكة بس، ويسيب الهندسة glTF قياسية.
 
 ## ملاحظات تقنية
 

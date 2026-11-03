@@ -1,6 +1,16 @@
 class_name Product
 extends StaticBody3D
 
+# Most goods are built from primitives (cheap, colourful, instantly readable).
+# A slice of each department uses one of the sculpted GLB props instead so the
+# floor and the shelves do not read as a wall of identical boxes.
+const HERO_MODELS := {
+	0: {"path": "res://assets/models/props/tomato_tray.glb", "scale": 0.30, "chance": 0.10, "height": 0.16},
+	4: {"path": "res://assets/models/props/cleaner_bottle.glb", "scale": 0.20, "chance": 0.16, "height": 0.26},
+}
+
+static var _hero_scenes: Dictionary = {}
+
 var department: int = 0
 var base_color: Color = Color.WHITE
 var _meshes: Array[MeshInstance3D] = []
@@ -15,15 +25,21 @@ func setup(dept: int, color: Color) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var s := rng.randf_range(1.02, 1.28)
-	_meshes = ProductShapes.build(self, dept, color, rng, s)
+	var box_height := 0.4
+	var hero := _hero_scene(dept)
+	if hero != null and rng.randf() < float(HERO_MODELS[dept]["chance"]):
+		box_height = float(HERO_MODELS[dept]["height"])
+		_build_hero(hero.instantiate(), float(HERO_MODELS[dept]["scale"]))
+	else:
+		_meshes = ProductShapes.build(self, dept, color, rng, s)
 	for mi in _meshes:
 		_original_materials[mi] = mi.material_override
 
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(0.34, 0.4, 0.34)
+	box.size = Vector3(0.34, box_height, 0.34)
 	shape.shape = box
-	shape.position = Vector3(0, 0.2, 0)
+	shape.position = Vector3(0, box_height * 0.5, 0)
 	add_child(shape)
 
 	rotation.y = rng.randf_range(0.0, TAU)
@@ -31,6 +47,38 @@ func setup(dept: int, color: Color) -> void:
 	# walking into a product nudges it with a kick instead of being blocked by it.
 	collision_layer = 16
 	collision_mask = 0
+
+
+static func _hero_scene(dept: int) -> PackedScene:
+	if not HERO_MODELS.has(dept):
+		return null
+	if not _hero_scenes.has(dept):
+		_hero_scenes[dept] = load(String(HERO_MODELS[dept]["path"]))
+	return _hero_scenes[dept]
+
+
+func _build_hero(inst: Node3D, s: float) -> void:
+	if inst == null:
+		return
+	inst.scale = Vector3.ONE * s
+	add_child(inst)
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null:
+			continue
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# The sculpted props ship with a fully metallic PBR material meant for a
+		# studio HDRI. Under the store's omni lights that reads almost black, so
+		# flatten it into a matte, brighter shop-shelf material.
+		var mat := mi.get_active_material(0)
+		if mat is StandardMaterial3D:
+			var copy := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+			copy.metallic = 0.0
+			copy.roughness = clampf(copy.roughness + 0.25, 0.35, 1.0)
+			copy.albedo_color = copy.albedo_color.lightened(0.12)
+			copy.vertex_color_use_as_albedo = false
+			mi.material_override = copy
+		_meshes.append(mi)
 
 
 func kick(dir: Vector3, strength: float = 1.0) -> void:
@@ -92,3 +140,4 @@ func set_highlight(on: bool) -> void:
 		for mi in _meshes:
 			if is_instance_valid(mi):
 				mi.material_override = _original_materials.get(mi, null)
+

@@ -100,6 +100,9 @@ var clock: float = DAY_START_HOUR
 var day_active: bool = false
 var day_revenue: int = 0
 var day_tips: int = 0
+var day_stock_income: int = 0
+var day_clean_income: int = 0
+var day_coin_income: int = 0
 var day_served: int = 0
 var day_lost: int = 0
 var day_stocked: int = 0
@@ -137,6 +140,9 @@ func reset() -> void:
 	day_active = false
 	day_revenue = 0
 	day_tips = 0
+	day_stock_income = 0
+	day_clean_income = 0
+	day_coin_income = 0
 	day_served = 0
 	day_lost = 0
 	day_stocked = 0
@@ -162,17 +168,24 @@ func reset() -> void:
 	for i in 4:
 		powerup_state_changed.emit(i)
 
-func add_cash(v: int) -> void:
+func add_cash(v: int, tag: String = "") -> void:
 	cash += v
 	if v > 0:
 		earned += v
+		match tag:
+			"stock":
+				day_stock_income += v
+			"clean":
+				day_clean_income += v
+			"coin":
+				day_coin_income += v
 	cash_changed.emit()
 
 func add_placed(n: int = 1) -> void:
 	placed += n
 	day_stocked += n
 	if not won:
-		while level < LEVEL_TARGETS.size() and placed >= LEVEL_TARGETS[level - 1] and placed < TOTAL_PRODUCTS:
+		while level < LEVEL_TARGETS.size() and placed >= LEVEL_TARGETS[level - 1]:
 			var bonus: int = LEVEL_BONUSES[level - 1]
 			level += 1
 			if bonus > 0:
@@ -268,6 +281,9 @@ func begin_day() -> void:
 	clock = DAY_START_HOUR
 	day_revenue = 0
 	day_tips = 0
+	day_stock_income = 0
+	day_clean_income = 0
+	day_coin_income = 0
 	day_served = 0
 	day_lost = 0
 	day_stocked = 0
@@ -308,7 +324,10 @@ func end_day() -> void:
 	for kind in STAFF_KINDS:
 		wages += int(staff.get(kind, 0)) * int(STAFF_WAGES[kind])
 	var rent := RENT_BASE + store_level * 25
-	var net := day_revenue + day_tips - wages - rent
+	# Everything the player earned today counts, not just register sales.
+	var side_income := day_stock_income + day_clean_income + day_coin_income
+	var gross := day_revenue + day_tips + side_income
+	var net := gross - wages - rent
 	var paid := mini(maxi(cash, 0), wages + rent)
 	cash = maxi(0, cash - wages - rent)
 	cash_changed.emit()
@@ -316,6 +335,11 @@ func end_day() -> void:
 		"day": day,
 		"revenue": day_revenue,
 		"tips": day_tips,
+		"stock_income": day_stock_income,
+		"clean_income": day_clean_income,
+		"coin_income": day_coin_income,
+		"side_income": side_income,
+		"gross": gross,
 		"served": day_served,
 		"lost": day_lost,
 		"stocked": day_stocked,
@@ -361,9 +385,9 @@ func record_sale(total: int, tip: int) -> void:
 	add_reputation(0.012, "خدمة زبون")
 	served_changed.emit()
 
-func record_lost_customer() -> void:
+func record_lost_customer(rep_delta: float = -0.12, reason: String = "زبون مشي غضبان") -> void:
 	day_lost += 1
-	add_reputation(-0.12, "زبون مشي غضبان")
+	add_reputation(rep_delta, reason)
 	served_changed.emit()
 
 func add_reputation(v: float, reason: String = "") -> void:
@@ -539,13 +563,10 @@ func activate_powerup(index: int) -> bool:
 	return true
 
 func tick_powerups(delta: float) -> void:
+	# No signal per frame here: the HUD polls this state a few times per second.
+	# Emitting for every cooling-down powerup used to fire up to 240 signals/sec.
 	for i in 4:
-		var changed := false
 		if powerup_cooldowns[i] > 0.0:
 			powerup_cooldowns[i] = maxf(0.0, powerup_cooldowns[i] - delta)
-			changed = true
 		if powerup_active[i] > 0.0:
 			powerup_active[i] = maxf(0.0, powerup_active[i] - delta)
-			changed = true
-		if changed:
-			powerup_state_changed.emit(i)

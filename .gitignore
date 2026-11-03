@@ -4,12 +4,19 @@
 export.cfg
 export_presets.cfg
 
-# Tools (Godot binary - download separately)
-tools/
+# Tools (Godot binary + local scratch — download separately)
+tools/*
+!tools/model_pipeline/
+tools/model_pipeline/node_modules/
+tools/model_pipeline/.pnpm-store/
+tools/model_pipeline/out/
+
+# Dev QA captures
+screenshot_result.png
+shot_*.png
+crop_*.png
+.tmp_godot_userdata/
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Dev QA captures
-screenshot_result.png

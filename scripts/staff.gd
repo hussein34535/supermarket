@@ -121,6 +121,9 @@ func _cleaner_tick(delta: float) -> void:
 			state = "cleaning"
 			_job_wait = 0.55
 	elif state == "cleaning":
+		if target == null or not is_instance_valid(target):
+			_reset_job(0.4)
+			return
 		nav_face(target.global_position, delta)
 		_job_wait -= delta
 		if _job_wait <= 0.0:

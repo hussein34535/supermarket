@@ -72,7 +72,7 @@ func _process(delta: float) -> void:
 func _on_body_entered(body: Node3D) -> void:
 	if not body is Player:
 		return
-	GameState.add_cash(value)
+	GameState.add_cash(value, "coin")
 	Sfx.play("cash", randf_range(0.96, 1.06), -2.0)
 	collected.emit(global_position, value)
 	set_deferred("monitoring", false)

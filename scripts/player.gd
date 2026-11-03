@@ -1,4 +1,4 @@
-class_name Player
+﻿class_name Player
 extends CharacterBody3D
 
 signal stack_changed
@@ -238,10 +238,10 @@ func _build_viewmodel() -> void:
 	bag_fold.clearcoat = 0.20
 	bag_fold.clearcoat_roughness = 0.38
 	var scan_mat := StandardMaterial3D.new()
-	scan_mat.albedo_texture = load("res://assets/models/character_texture_pbr_20250901.png")
+	scan_mat.albedo_texture = load("res://assets/models/character_texture_pbr_20250901.webp")
 	scan_mat.normal_enabled = true
-	scan_mat.normal_texture = load("res://assets/models/character_texture_pbr_20250901_normal.png")
-	scan_mat.roughness_texture = load("res://assets/models/character_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png")
+	scan_mat.normal_texture = load("res://assets/models/character_texture_pbr_20250901_normal.webp")
+	scan_mat.roughness_texture = load("res://assets/models/character_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.webp")
 	scan_mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
 	scan_mat.metallic_texture = scan_mat.roughness_texture
 	scan_mat.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_BLUE
@@ -624,11 +624,11 @@ func _capsule_between(parent: Node3D, a: Vector3, b: Vector3, radius: float, mat
 
 func _make_arms_material() -> StandardMaterial3D:
 	var skin_mat := StandardMaterial3D.new()
-	skin_mat.albedo_texture = load("res://assets/models/arms_rigged_texture_pbr_20250901.png")
+	skin_mat.albedo_texture = load("res://assets/models/arms_rigged_texture_pbr_20250901.webp")
 	skin_mat.normal_enabled = true
-	skin_mat.normal_texture = load("res://assets/models/arms_rigged_texture_pbr_20250901_normal.png")
+	skin_mat.normal_texture = load("res://assets/models/arms_rigged_texture_pbr_20250901_normal.webp")
 	skin_mat.normal_scale = 0.85
-	var orm: Texture2D = load("res://assets/models/arms_rigged_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png")
+	var orm: Texture2D = load("res://assets/models/arms_rigged_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.webp")
 	if orm != null:
 		skin_mat.roughness_texture = orm
 		skin_mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
@@ -1148,9 +1148,9 @@ func toggle_view() -> void:
 	_viewmodel.visible = not third_person
 	_body.visible = third_person
 	if third_person:
-		_flash_hint("منظور ثالث")
+		_flash_hint("Ù…Ù†Ø¸ÙˆØ± Ø«Ø§Ù„Ø«")
 	else:
-		_flash_hint("منظور أول")
+		_flash_hint("Ù…Ù†Ø¸ÙˆØ± Ø£ÙˆÙ„")
 
 
 func set_mobile_move(v: Vector2) -> void:
@@ -1334,21 +1334,22 @@ func try_interact() -> void:
 				if lane.state == "waiting_payment":
 					var paid: int = lane.charge()
 					if paid > 0:
-						_flash_hint("تم التحصيل  +$%d" % paid)
+						_flash_hint("ØªÙ… Ø§Ù„ØªØ­ØµÙŠÙ„  +$%d" % paid)
 					else:
 						_flash_hint(lane.prompt_text())
 				else:
 					_flash_hint(lane.prompt_text())
 			return
-	if stack.size() >= GameState.capacity():
-		_flash_hint("الحمل مليان! طوّر السعة من U")
-		Sfx.play("error", 1.0, -6.0)
-		return
-
 	if collider == null:
 		return
 
 	if collider is Product:
+		# Capacity only limits picking up. Stocking a shelf must always work,
+		# otherwise a full load would lock the player out of the core loop.
+		if stack.size() >= GameState.capacity():
+			_flash_hint("Ø§Ù„Ø­Ù…Ù„ Ù…Ù„ÙŠØ§Ù†! Ø·ÙˆÙ‘Ø± Ø§Ù„Ø³Ø¹Ø© Ù…Ù† U")
+			Sfx.play("error", 1.0, -6.0)
+			return
 		_pick_up_product(collider)
 	elif collider.has_meta("is_shelf"):
 		_place_on_shelf(collider)
@@ -1396,7 +1397,7 @@ func _collect_trash(piece: TrashScript) -> void:
 
 func _pick_up_product(product: Product) -> void:
 	if stack.size() >= GameState.capacity():
-		_flash_hint("الحمل مليان!")
+		_flash_hint("Ø§Ù„Ø­Ù…Ù„ Ù…Ù„ÙŠØ§Ù†!")
 		Sfx.play("error", 1.1, -6.0)
 		return
 	stack.append(product.department)
@@ -1420,16 +1421,16 @@ func _place_on_shelf(shelf_node: Node) -> void:
 	if shelf == null:
 		return
 	if stack.is_empty():
-		_flash_hint("التقط منتجات الأول!")
+		_flash_hint("Ø§Ù„ØªÙ‚Ø· Ù…Ù†ØªØ¬Ø§Øª Ø§Ù„Ø£ÙˆÙ„!")
 		Sfx.play("error", 0.9, -6.0)
 		return
 	var dept: int = stack.back()
 	if dept != shelf.department:
-		_flash_hint("رف غلط! محتاج %s" % GameState.DEPARTMENT_NAMES[dept])
+		_flash_hint("Ø±Ù ØºÙ„Ø·! Ù…Ø­ØªØ§Ø¬ %s" % GameState.DEPARTMENT_NAMES[dept])
 		Sfx.play("error", 1.0, -6.0)
 		return
 	if not shelf.can_accept():
-		_flash_hint("الرف مليان!")
+		_flash_hint("Ø§Ù„Ø±Ù Ù…Ù„ÙŠØ§Ù†!")
 		Sfx.play("error", 1.1, -6.0)
 		return
 	stack.pop_back()
@@ -1564,7 +1565,7 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 
 
 func _update_hint() -> void:
-	ray.force_raycast_update()
+	# The ray was already refreshed at the top of _physics_process this frame.
 	_ray_trash = false
 	if not ray.is_colliding():
 		_hint_label.visible = false
@@ -1577,7 +1578,7 @@ func _update_hint() -> void:
 		var item = collider
 		var dept: int = item.dept
 		var pct := int(round(item.progress * 100.0))
-		_hint_label.text = "اضغط مطوّل E  •  امسح %s  •  $%d  •  %d%%" % [
+		_hint_label.text = "Ø§Ø¶ØºØ· Ù…Ø·ÙˆÙ‘Ù„ E  â€¢  Ø§Ù…Ø³Ø­ %s  â€¢  $%d  â€¢  %d%%" % [
 			GameState.DEPARTMENT_NAMES[dept], item.price, pct
 		]
 		_hint_label.modulate = GameState.DEPARTMENT_COLORS[dept].lightened(0.3)
@@ -1586,7 +1587,7 @@ func _update_hint() -> void:
 		return
 	if collider.has_meta("is_delivery"):
 		var crate = collider
-		_hint_label.text = "E  •  افتح التوصيل  •  %s x%d" % [
+		_hint_label.text = "E  â€¢  Ø§ÙØªØ­ Ø§Ù„ØªÙˆØµÙŠÙ„  â€¢  %s x%d" % [
 			GameState.DEPARTMENT_NAMES[crate.dept], crate.count
 		]
 		_hint_label.modulate = GameState.DEPARTMENT_COLORS[crate.dept].lightened(0.3)
@@ -1606,31 +1607,31 @@ func _update_hint() -> void:
 	if collider is Product:
 		var p: Product = collider
 		if stack.size() < GameState.capacity():
-			_hint_label.text = "E  •  يد  •  التقط %s" % GameState.DEPARTMENT_NAMES[p.department]
+			_hint_label.text = "E  â€¢  ÙŠØ¯  â€¢  Ø§Ù„ØªÙ‚Ø· %s" % GameState.DEPARTMENT_NAMES[p.department]
 			_hint_label.modulate = GameState.DEPARTMENT_COLORS[p.department].lightened(0.25)
 			_hint_label.visible = true
 		else:
-			_hint_label.text = "الحمل مليان!"
+			_hint_label.text = "Ø§Ù„Ø­Ù…Ù„ Ù…Ù„ÙŠØ§Ù†!"
 			_hint_label.modulate = Color(1, 0.4, 0.4)
 			_hint_label.visible = true
 		_hint_label.global_position = p.global_position + Vector3(0, 0.6, 0)
 	elif collider is TrashScript:
 		var trash: TrashScript = collider
 		_ray_trash = true
-		_hint_label.text = "E  •  عصا  •  نظّف +$%d" % GameState.trash_payout(trash.value)
+		_hint_label.text = "E  â€¢  Ø¹ØµØ§  â€¢  Ù†Ø¸Ù‘Ù +$%d" % GameState.trash_payout(trash.value)
 		_hint_label.modulate = Color(0.55, 1.0, 0.75)
 		_hint_label.global_position = trash.global_position + Vector3(0, 0.82, 0)
 		_hint_label.visible = true
 	elif collider.has_meta("is_shelf") or collider.get_parent() is Shelf:
 		var shelf: Shelf = collider if collider is Shelf else collider.get_parent()
 		if stack.is_empty():
-			_hint_label.text = "رف %s" % GameState.DEPARTMENT_NAMES[shelf.department]
+			_hint_label.text = "Ø±Ù %s" % GameState.DEPARTMENT_NAMES[shelf.department]
 			_hint_label.modulate = shelf.dept_color.lightened(0.15)
 		elif stack.back() == shelf.department:
-			_hint_label.text = "E  •  يد  •  رتّب %s  •  $%d" % [GameState.DEPARTMENT_NAMES[shelf.department], GameState.product_price(shelf.department)]
+			_hint_label.text = "E  â€¢  ÙŠØ¯  â€¢  Ø±ØªÙ‘Ø¨ %s  â€¢  $%d" % [GameState.DEPARTMENT_NAMES[shelf.department], GameState.product_price(shelf.department)]
 			_hint_label.modulate = Color(0.5, 1, 0.5)
 		else:
-			_hint_label.text = "محتاج رف %s" % GameState.DEPARTMENT_NAMES[stack.back()]
+			_hint_label.text = "Ù…Ø­ØªØ§Ø¬ Ø±Ù %s" % GameState.DEPARTMENT_NAMES[stack.back()]
 			_hint_label.modulate = Color(1, 0.5, 0.4)
 		_hint_label.global_position = shelf.global_position + Vector3(0, 3.15, 0)
 		_hint_label.visible = true
@@ -1657,7 +1658,7 @@ func use_powerup(index: int) -> void:
 	match index:
 		0:
 			if stack.is_empty():
-				_flash_hint("التقط منتج الأول!")
+				_flash_hint("Ø§Ù„ØªÙ‚Ø· Ù…Ù†ØªØ¬ Ø§Ù„Ø£ÙˆÙ„!")
 				Sfx.play("error", 0.9, -6.0)
 				return
 			if GameState.activate_powerup(index):
@@ -1668,7 +1669,7 @@ func use_powerup(index: int) -> void:
 			if GameState.activate_powerup(index):
 				Sfx.play("upgrade")
 				powerup_used.emit(index)
-				_flash_hint("قدرة الزوجين شغالة!")
+				_flash_hint("Ù‚Ø¯Ø±Ø© Ø§Ù„Ø²ÙˆØ¬ÙŠÙ† Ø´ØºØ§Ù„Ø©!")
 		2:
 			if GameState.activate_powerup(index):
 				Sfx.play("upgrade")
@@ -1679,7 +1680,7 @@ func use_powerup(index: int) -> void:
 				Sfx.play("upgrade")
 				powerup_used.emit(index)
 				organize_stack()
-				_flash_hint("تم ترتيب الحمل!")
+				_flash_hint("ØªÙ… ØªØ±ØªÙŠØ¨ Ø§Ù„Ø­Ù…Ù„!")
 
 
 func organize_stack() -> void:
