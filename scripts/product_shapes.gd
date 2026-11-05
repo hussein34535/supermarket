@@ -29,6 +29,23 @@ static func highlight_material(color: Color) -> StandardMaterial3D:
 	return _mat(color.lightened(0.45), 0.0, 0.4, 2.5)
 
 
+# The sculpted models ship with glossy, often fully metallic PBR materials
+# tuned for a studio HDRI. Under the store's omni lights those read almost
+# black, so flatten the metal response on a copy while keeping the albedo,
+# normal and roughness maps that make the labels readable.
+static func shop_material(mi: MeshInstance3D) -> void:
+	var mat := mi.get_active_material(0)
+	if not (mat is StandardMaterial3D):
+		return
+	var copy := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+	copy.metallic = 0.0
+	copy.metallic_specular = 0.45
+	copy.roughness = clampf(copy.roughness + 0.2, 0.45, 1.0)
+	copy.albedo_color = copy.albedo_color.lightened(0.1)
+	copy.vertex_color_use_as_albedo = false
+	mi.material_override = copy
+
+
 static func _mat(c: Color, metallic: float = 0.0, rough: float = 0.55, emission: float = 0.0) -> StandardMaterial3D:
 	var key := "%s|%.2f|%.2f|%.2f" % [c.to_html(), metallic, rough, emission]
 	if _mat_cache.has(key):

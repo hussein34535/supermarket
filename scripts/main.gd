@@ -100,12 +100,47 @@ func _capture_and_quit() -> void:
 				ui.show_win()
 			"pause":
 				ui.toggle_pause()
-	await get_tree().create_timer(1.2).timeout
-	if ui != null and ui.upgrades_panel != null and ui.upgrades_panel.visible:
-		print("DBG viewport=", get_viewport().get_visible_rect(), " hub=", ui.upgrades_panel.get_global_rect(), " min=", ui.upgrades_panel.get_combined_minimum_size(), " rtl=", ui.upgrades_panel.is_layout_rtl())
-		print("DBG row=", ui.speed_btn.get_node("Row").get_global_rect())
-		for child in ui.speed_btn.get_node("Row").get_children():
-			print("DBG child ", child.name, " ", child.get_global_rect())
+			"staffdemo":
+				# QA: spawn the hired crew and look at the express lane.
+				GameState.staff = {"cleaner": 1, "stocker": 0, "cashier": 1}
+				_sync_staff()
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(15.3, 0.1, 14.3)
+					player.rotation.y = 0.0
+			"walkdemo":
+				GameState.staff = {"cleaner": 1, "stocker": 1, "cashier": 0}
+				_sync_staff()
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(-15.4, 0.1, 6.2)
+					player.rotation.y = PI * 0.5
+			"produce":
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(-17.2, 0.1, -0.9)
+					player.rotation.y = PI * 0.5
+			"lanes":
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(3.5, 0.1, 8.4)
+					player.rotation.y = PI
+			"delivery":
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(-13.6, 0.1, 10.2)
+					player.rotation.y = PI
+			"rigtest":
+				# QA: freeze a single rigged actor mid-stride and look at it.
+				var tester = StaffScript.new()
+				people_root.add_child(tester)
+				tester.setup(self, _rng, "cleaner")
+				tester.global_position = Vector3(0, 0.0, 6.0)
+				tester.rotation.y = PI
+				tester.set_process(false)
+				tester._moving = true
+				tester._rig_walk = 0.9
+				tester._animate_rigged(0.016)
+				tester._pose_bone("Spine", 0.55)
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(0, 0.1, 8.8)
+					player.rotation.y = 0.0
+	await get_tree().create_timer(3.2 if panel == "walkdemo" else 1.2).timeout
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	if img != null:
@@ -651,6 +686,7 @@ func _build_decor() -> void:
 	_build_carts()
 	_build_produce()
 	_build_cleaning_props()
+	_build_equipment()
 	_build_sale_signs()
 	_build_entry_mat()
 	_build_aisle_signs()
@@ -1024,6 +1060,49 @@ func _build_produce() -> void:
 			mi.material_override = ProductShapes._mat(fruit_cols[i % 4], 0.0, 0.35)
 			mi.position = p + Vector3(randf_range(-0.38, 0.38), 0.66 + randf_range(0.0, 0.1), randf_range(-0.28, 0.28))
 			add_child(mi)
+		# Two real produce scans per crate so the fruit corner is not all spheres.
+		for k in 2:
+			var m: Dictionary = ModelCatalog.pick(0)
+			if m.is_empty():
+				continue
+			var packed := ModelCatalog.scene(String(m["path"]))
+			var decor := _place_scene(
+				packed,
+				p + Vector3(randf_range(-0.28, 0.28), 0.63, randf_range(-0.2, 0.2)),
+				randf_range(0.0, TAU),
+				float(m["scale"]))
+			if decor != null:
+				decor.name = "Produce_%s" % String(m["name"])
+
+
+func _build_equipment() -> void:
+	# Equipment scans from the model drop. A produce scale in the fruit corner,
+	# one beside every checkout lane, and the rack + grill around the delivery
+	# bay. Decor only, so they add no colliders to the customers' paths.
+	for i in 4:
+		var cx := -7.0 + i * 7.0
+		_place_scene(ModelCatalog.equipment("digital_scale"), Vector3(cx + 2.1, 0.0, 10.85), PI, 1.0)
+	_place_scene(ModelCatalog.equipment("digital_scale"), Vector3(-19.0, 0.0, -3.5), PI * 0.5, 1.0)
+	_place_scene(ModelCatalog.equipment("metal_rack"), DELIVERY_SPOT + Vector3(2.55, 0.0, -0.6), PI * 0.5, 1.0)
+	_place_scene(ModelCatalog.equipment("metal_rack"), DELIVERY_SPOT + Vector3(2.55, 0.0, 0.55), PI * 0.5, 1.0)
+	_place_scene(ModelCatalog.equipment("metal_grill"), DELIVERY_SPOT + Vector3(-2.6, 0.0, -0.55), 0.0, 1.3)
+
+
+func _place_scene(packed: PackedScene, pos: Vector3, yaw: float, s: float) -> Node3D:
+	if packed == null:
+		return null
+	var inst := packed.instantiate() as Node3D
+	if inst == null:
+		return null
+	inst.position = pos
+	inst.rotation.y = yaw
+	inst.scale = Vector3.ONE * s
+	add_child(inst)
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi != null:
+			ProductShapes.shop_material(mi)
+	return inst
 
 
 func _build_cleaning_props() -> void:

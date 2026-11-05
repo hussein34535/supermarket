@@ -31,6 +31,18 @@ var role: String = "customer"
 var path: Array[Vector3] = []
 var speed: float = 1.05
 
+# --- optional rigged body -----------------------------------------------------
+# Staff can swap the primitive doll for the sculpted worker (52 bones). The
+# skeleton is driven by name so the same nav_step/carry logic keeps working.
+const RIGGED_SCALE: float = 1.52
+var _rig: Node3D
+var _rig_skel: Skeleton3D
+var _rig_anim: AnimationPlayer
+var _rig_bones: Dictionary = {}
+var _rig_walk: float = 0.0
+var _rig_mode: bool = false
+var _rig_use_anim: bool = false
+
 var _rng: RandomNumberGenerator
 var _wp: int = 0
 var _wait: float = 0.0
@@ -548,6 +560,9 @@ func nav_face(target: Vector3, delta: float) -> void:
 
 
 func _animate(delta: float) -> void:
+	if _rig_mode:
+		_animate_rigged(delta)
+		return
 	if _moving:
 		_animate_walk(delta)
 	else:
@@ -717,3 +732,78 @@ func _detail(mi: MeshInstance3D, distance: float) -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.visibility_range_end = distance
 	mi.visibility_range_end_margin = 1.5
+
+
+# ---------------------------------------------------------------- rigged body
+# Swaps the primitive doll for the sculpted worker model. Bones are addressed by
+# name, so walk cycles are driven here instead of rotating body nodes.
+func build_rigged(scene: PackedScene, play_idle: bool) -> bool:
+	if scene == null:
+		return false
+	var inst := scene.instantiate() as Node3D
+	if inst == null:
+		return false
+	_rig = inst
+	add_child(_rig)
+	_rig.scale = Vector3.ONE * RIGGED_SCALE
+
+	_rig_skel = _find_class(inst, "Skeleton3D") as Skeleton3D
+	if _rig_skel == null:
+		_rig.queue_free()
+		_rig = null
+		return false
+	for i in _rig_skel.get_bone_count():
+		_rig_bones[_rig_skel.get_bone_name(i)] = i
+	_rig_anim = _find_class(inst, "AnimationPlayer") as AnimationPlayer
+	if _rig_anim != null and _rig_anim.get_animation_list().size() > 0:
+		_rig_anim.autoplay = ""
+		_rig_anim.stop()
+		if play_idle:
+			_rig_anim.play(_rig_anim.get_animation_list()[0])
+			_rig_use_anim = true
+	_rig_mode = true
+	return true
+
+
+func _find_class(node: Node, cls: String) -> Node:
+	if node.is_class(cls):
+		return node
+	for child in node.get_children():
+		var found := _find_class(child, cls)
+		if found != null:
+			return found
+	return null
+
+
+func _pose_bone(bone_name: String, angle: float) -> void:
+	if not _rig_bones.has(bone_name):
+		return
+	var idx: int = _rig_bones[bone_name]
+	# Rotate around the world X axis (forward/back swing) even though every bone
+	# has its own rest orientation: convert world X into the bone's local frame.
+	var rest_global: Transform3D = _rig_skel.get_bone_global_rest(idx)
+	var axis_local := (rest_global.basis.inverse() * Vector3.RIGHT).normalized()
+	_rig_skel.set_bone_pose_rotation(idx, Quaternion(axis_local, angle))
+
+
+func _animate_rigged(delta: float) -> void:
+	if _rig_skel == null:
+		return
+	if _rig_use_anim:
+		# The imported idle already animates the whole skeleton.
+		_rig.position.y = 0.0
+		return
+	_rig_walk += delta * (8.5 if _moving else 1.5)
+	var stride := sin(_rig_walk)
+	var amp := 0.52 if _moving else 0.0
+	_pose_bone("LeftUpLeg", stride * amp)
+	_pose_bone("RightUpLeg", -stride * amp)
+	_pose_bone("LeftLeg", maxf(0.0, -stride) * 0.85 * (1.0 if _moving else 0.0))
+	_pose_bone("RightLeg", maxf(0.0, stride) * 0.85 * (1.0 if _moving else 0.0))
+	_pose_bone("LeftFoot", -stride * 0.25 * (1.0 if _moving else 0.0))
+	_pose_bone("RightFoot", stride * 0.25 * (1.0 if _moving else 0.0))
+	_pose_bone("LeftArm", -stride * amp * 0.7)
+	_pose_bone("RightArm", stride * amp * 0.7)
+	_pose_bone("Spine", 0.05 if _moving else sin(_anim_t * 1.6) * 0.012)
+	if _rig != null:
+		_rig.position.y = absf(sin(_rig_walk * 2.0)) * 0.012 if _moving else 0.0

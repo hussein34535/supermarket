@@ -1,9 +1,11 @@
-class_name Staff
+﻿class_name Staff
 extends Person
 
 # Hired help. Cleaners sweep trash, stockers carry loose products back to their
 # shelf, and a cashier drives the express lane automatically. They are simple
 # Node3D actors steered by nav_step, not physics bodies.
+const RIGGED_STAFF := preload("res://assets/models/props/worker_full.gltf")
+
 var main: Node = null
 var kind: String = "cleaner"
 var state: String = "idle"
@@ -20,7 +22,10 @@ func setup(main_ref: Node, rng: RandomNumberGenerator, staff_kind: String) -> vo
 	kind = staff_kind
 	_rng = rng
 	role = "cashier" if kind == "cashier" else "waiting"
-	_build_body(true)
+	# The cashier stands still, so the sculpted worker can play its idle clip.
+	# Walking staff use the same model with a procedurally driven skeleton.
+	if not build_rigged(RIGGED_STAFF, kind == "cashier"):
+		_build_body(true)
 	speed = rng.randf_range(1.0, 1.22)
 	if kind == "cashier":
 		position = Vector3(15.3, 0.0, 10.82)
@@ -222,3 +227,4 @@ func _show_carry() -> void:
 	rng.seed = 41 + _carry_dept * 17
 	ProductShapes.build(_carry_mesh, _carry_dept, GameState.DEPARTMENT_COLORS[_carry_dept], rng, 0.55)
 	_carry_mesh.scale = Vector3.ONE * 0.7
+

@@ -1,0 +1,838 @@
+{
+ "source": "C:\\Users\\husso\\Downloads\\3d",
+ "out": "assets/models/catalog",
+ "entries": [
+  {
+   "hash": "24b51ff2",
+   "file": "24b51ff29a18d681e0cbc6e07a3b86e9.glb",
+   "category": "produce",
+   "name": "red_grapes",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.965,
+    0.972,
+    1.127
+   ]
+  },
+  {
+   "hash": "269ec05a",
+   "file": "269ec05a92adcc8a2edb85032567e26e.glb",
+   "category": "produce",
+   "name": "green_grapes",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    1.127,
+    1.112,
+    0.945
+   ]
+  },
+  {
+   "hash": "4b16912b",
+   "file": "4b16912b9111f6392b2d694b37620d2b.glb",
+   "category": "produce",
+   "name": "red_onions",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    1.139,
+    0.542,
+    0.549
+   ]
+  },
+  {
+   "hash": "6e3f9c36",
+   "file": "6e3f9c36c8561954578f315dd99898db.glb",
+   "category": "produce",
+   "name": "lettuce",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.892,
+    0.931,
+    1.095
+   ]
+  },
+  {
+   "hash": "70a9a863",
+   "file": "70a9a863615ad6a19d730ab7f1dae499.glb",
+   "category": "produce",
+   "name": "broccoli",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    1.028,
+    1.016,
+    1.167
+   ]
+  },
+  {
+   "hash": "8732d7fc",
+   "file": "8732d7fc12688f81f2a8841772dfea39.glb",
+   "category": "produce",
+   "name": "cabbage",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    1.004,
+    0.982,
+    0.956
+   ]
+  },
+  {
+   "hash": "adcd4362",
+   "file": "adcd4362a33c8c88874eaaea640f3d74.glb",
+   "category": "produce",
+   "name": "red_peppers",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    1.165,
+    1.163,
+    1.053
+   ]
+  },
+  {
+   "hash": "c084282a",
+   "file": "c084282ae9b7f61ee30c5ac94af88f14.glb",
+   "category": "produce",
+   "name": "zucchini",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    1.199,
+    0.231,
+    0.226
+   ]
+  },
+  {
+   "hash": "e3d7b82a",
+   "file": "e3d7b82ab27154b0eee20b21c8a80c07.glb",
+   "category": "produce",
+   "name": "potatoes",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.857,
+    0.83,
+    1.172
+   ]
+  },
+  {
+   "hash": "ee1149b7",
+   "file": "ee1149b77aa24d069fe4442ec43a1ca6.glb",
+   "category": "produce",
+   "name": "carrots",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.602,
+    1.159,
+    0.329
+   ]
+  },
+  {
+   "hash": "044194e5",
+   "file": "044194e509eca94aa49290489e739437.glb",
+   "category": "dairy",
+   "name": "milk_cartons",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.396,
+    0.345,
+    1.102
+   ]
+  },
+  {
+   "hash": "09697b7a",
+   "file": "09697b7a0c49ad89290c12d0cbd53559.glb",
+   "category": "dairy",
+   "name": "alpro_soy",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.394,
+    0.386,
+    1.093
+   ]
+  },
+  {
+   "hash": "377f0414",
+   "file": "377f0414f4019fe05916fd399b600cb1.glb",
+   "category": "dairy",
+   "name": "butter_blocks",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.494,
+    0.273,
+    1.157
+   ]
+  },
+  {
+   "hash": "5dd957b6",
+   "file": "5dd957b68432b85c737ad43a05ce3686.glb",
+   "category": "dairy",
+   "name": "kiri_cheese",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    1.031,
+    0.229,
+    0.636
+   ]
+  },
+  {
+   "hash": "a6e79347",
+   "file": "a6e793478b074529951c16bee6b7737e.glb",
+   "category": "dairy",
+   "name": "alpro_almond",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    1,
+    0.656,
+    0.668
+   ]
+  },
+  {
+   "hash": "afc4c065",
+   "file": "afc4c065185325e1e2fe05f92791a47d.glb",
+   "category": "dairy",
+   "name": "zad_milk",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.862,
+    0.863,
+    0.832
+   ]
+  },
+  {
+   "hash": "b8210688",
+   "file": "b8210688b712707cbf178f6aade5cfa2.glb",
+   "category": "dairy",
+   "name": "alpro_coconut",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.386,
+    0.364,
+    1.106
+   ]
+  },
+  {
+   "hash": "bc852cfb",
+   "file": "bc852cfb2c1b729db78c746c22281b5f.glb",
+   "category": "dairy",
+   "name": "oat_milk",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.404,
+    0.412,
+    1.138
+   ]
+  },
+  {
+   "hash": "047822cd",
+   "file": "047822cdfda9e8d3413c15c9458db725.glb",
+   "category": "drinks",
+   "name": "monster_black",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.457,
+    0.457,
+    1.141
+   ]
+  },
+  {
+   "hash": "14b55ea8",
+   "file": "14b55ea8e25e3bbae7c3a2d5f5ef9a3e.glb",
+   "category": "drinks",
+   "name": "redbull_cans",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.458,
+    0.458,
+    1.118
+   ]
+  },
+  {
+   "hash": "1f3d03ef",
+   "file": "1f3d03ef07555818ff20443a4cbdf037.glb",
+   "category": "drinks",
+   "name": "pepsi_cans",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    1.147,
+    0.231,
+    0.34
+   ]
+  },
+  {
+   "hash": "398c3c5b",
+   "file": "398c3c5bb26a034b7a5c15fce656a7d9.glb",
+   "category": "drinks",
+   "name": "lipton_tea",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.684,
+    0.165,
+    0.99
+   ]
+  },
+  {
+   "hash": "431731a2",
+   "file": "431731a22f10232d6b4e6a46a3416573.glb",
+   "category": "drinks",
+   "name": "aquafina_water",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.419,
+    0.218,
+    1.14
+   ]
+  },
+  {
+   "hash": "5a416b5d",
+   "file": "5a416b5d01447541e8188d185800f669.glb",
+   "category": "drinks",
+   "name": "monster_blue",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.448,
+    0.448,
+    1.147
+   ]
+  },
+  {
+   "hash": "7d5842d5",
+   "file": "7d5842d5f8dfb159174a28b2a7338576.glb",
+   "category": "drinks",
+   "name": "dark_bottles",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.348,
+    0.349,
+    1.171
+   ]
+  },
+  {
+   "hash": "8cc12b3c",
+   "file": "8cc12b3c6565d78d93b91add806fe674.glb",
+   "category": "drinks",
+   "name": "suntop_orange",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.601,
+    0.353,
+    1.026
+   ]
+  },
+  {
+   "hash": "8eb2e998",
+   "file": "8eb2e99810ffef6dc4f6225b9016d84a.glb",
+   "category": "drinks",
+   "name": "kdd_juice",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    1.045,
+    0.252,
+    0.571
+   ]
+  },
+  {
+   "hash": "c5aa1de7",
+   "file": "c5aa1de7eac07b8cb96fd7ad134cef67.glb",
+   "category": "drinks",
+   "name": "monster_white",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.463,
+    0.465,
+    1.14
+   ]
+  },
+  {
+   "hash": "c64734f8",
+   "file": "c64734f8d505976d82733cd73d0c772e.glb",
+   "category": "drinks",
+   "name": "nestle_juice",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.398,
+    0.338,
+    1.105
+   ]
+  },
+  {
+   "hash": "ec07c4d6",
+   "file": "ec07c4d6e0c7096a74e176131517d27e.glb",
+   "category": "drinks",
+   "name": "sevenup_cans",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.437,
+    0.231,
+    1.162
+   ]
+  },
+  {
+   "hash": "f0a48869",
+   "file": "f0a488694a159e585cd9e4c718c04fe7.glb",
+   "category": "drinks",
+   "name": "monster_green",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.453,
+    0.455,
+    1.143
+   ]
+  },
+  {
+   "hash": "f0d0d10f",
+   "file": "f0d0d10f652dfb7f5e4da1fe6d7688f9.glb",
+   "category": "drinks",
+   "name": "coca_cola",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.577,
+    0.576,
+    1.104
+   ]
+  },
+  {
+   "hash": "fac7e908",
+   "file": "fac7e908e6aca09ddc3337128b552db9.glb",
+   "category": "drinks",
+   "name": "sevenup_pack",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.642,
+    0.409,
+    1.004
+   ]
+  },
+  {
+   "hash": "fefc49c6",
+   "file": "fefc49c6266878ec09cb0e53e017e759.glb",
+   "category": "drinks",
+   "name": "coke_cans",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.414,
+    0.455,
+    1.116
+   ]
+  },
+  {
+   "hash": "227bd2bf",
+   "file": "227bd2bfa7cd87233125fe728afe3d91.glb",
+   "category": "snacks",
+   "name": "lays_yellow",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.679,
+    0.23,
+    0.991
+   ]
+  },
+  {
+   "hash": "3c54f219",
+   "file": "3c54f219eef631922a674dc836f1c88d.glb",
+   "category": "snacks",
+   "name": "lays_classic",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.677,
+    0.212,
+    0.995
+   ]
+  },
+  {
+   "hash": "3c9a49c7",
+   "file": "3c9a49c7554f57f67d7d66bed1cd0387.glb",
+   "category": "snacks",
+   "name": "pringles",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.392,
+    0.392,
+    1.161
+   ]
+  },
+  {
+   "hash": "53b89641",
+   "file": "53b89641eb410fa9b50fab2d0ee0dc1d.glb",
+   "category": "snacks",
+   "name": "candy_bars",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.964,
+    0.236,
+    0.721
+   ]
+  },
+  {
+   "hash": "5f12cdfe",
+   "file": "5f12cdfe8817aa500a669dbe1bac122a.glb",
+   "category": "snacks",
+   "name": "halwani_box",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.651,
+    0.368,
+    0.991
+   ]
+  },
+  {
+   "hash": "8d7c5a83",
+   "file": "8d7c5a83cdda0dc59565ee4cbc86f0dd.glb",
+   "category": "snacks",
+   "name": "crispbread",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.445,
+    0.444,
+    1.123
+   ]
+  },
+  {
+   "hash": "95f93e06",
+   "file": "95f93e0660228374a347e4a08ca1d88e.glb",
+   "category": "snacks",
+   "name": "cadbury_box",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    1.07,
+    0.262,
+    0.513
+   ]
+  },
+  {
+   "hash": "adcc97be",
+   "file": "adcc97be1c3a038ed94db3d64e07d5d2.glb",
+   "category": "snacks",
+   "name": "orange_candy",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.79,
+    0.862,
+    1.12
+   ]
+  },
+  {
+   "hash": "eb0fbb80",
+   "file": "eb0fbb80b0776905a85d496ccc36249f.glb",
+   "category": "snacks",
+   "name": "doritos",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.686,
+    0.212,
+    0.985
+   ]
+  },
+  {
+   "hash": "eec132c1",
+   "file": "eec132c1e2ee14030f10a484a045d149.glb",
+   "category": "snacks",
+   "name": "lays_wave",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.717,
+    0.241,
+    0.966
+   ]
+  },
+  {
+   "hash": "f552e770",
+   "file": "f552e770e2d2690c9b91f4ab220d843d.glb",
+   "category": "snacks",
+   "name": "snickers",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.645,
+    0.247,
+    1.017
+   ]
+  },
+  {
+   "hash": "fe233bdf",
+   "file": "fe233bdfcf9d5db0a133cc3a1905c5e0.glb",
+   "category": "snacks",
+   "name": "chocolate_bars",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    1.075,
+    0.281,
+    0.538
+   ]
+  },
+  {
+   "hash": "0fde9b7c",
+   "file": "0fde9b7cf6cea7ef2e32e8d8a78796a0.glb",
+   "category": "pantry",
+   "name": "tuna_cans",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.953,
+    0.953,
+    0.733
+   ]
+  },
+  {
+   "hash": "325478c3",
+   "file": "325478c3f3ae74aa708eb5f3d976f103.glb",
+   "category": "pantry",
+   "name": "mayo_ketchup",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.556,
+    0.32,
+    1.133
+   ]
+  },
+  {
+   "hash": "3cb8f14e",
+   "file": "3cb8f14efd4c0eda900cc015e0ab2158.glb",
+   "category": "pantry",
+   "name": "nescafe_jars",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.54,
+    0.341,
+    1.043
+   ]
+  },
+  {
+   "hash": "50c9edc1",
+   "file": "50c9edc125233180a0326a58d9c177d9.glb",
+   "category": "pantry",
+   "name": "cooking_oil",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.405,
+    0.383,
+    1.108
+   ]
+  },
+  {
+   "hash": "5c946f9c",
+   "file": "5c946f9c28d4ebceaaf4ba2a0272c38e.glb",
+   "category": "pantry",
+   "name": "lipton_box",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.713,
+    0.315,
+    0.958
+   ]
+  },
+  {
+   "hash": "821499fc",
+   "file": "821499fcf9a926164f53579e8cad8bf9.glb",
+   "category": "pantry",
+   "name": "ketchup_cans",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.546,
+    0.323,
+    1.133
+   ]
+  },
+  {
+   "hash": "a5a8730f",
+   "file": "a5a8730f19213465065401a5fb2364f9.glb",
+   "category": "pantry",
+   "name": "oil_bottles",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.428,
+    0.264,
+    1.16
+   ]
+  },
+  {
+   "hash": "b323dc39",
+   "file": "b323dc399f3d809035faa081d3294c94.glb",
+   "category": "pantry",
+   "name": "coffee_beans",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.665,
+    0.149,
+    1.009
+   ]
+  },
+  {
+   "hash": "bb5bed7e",
+   "file": "bb5bed7eb9e195f0ee71bccbb29cc63f.glb",
+   "category": "pantry",
+   "name": "olive_oil",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.385,
+    0.291,
+    1.164
+   ]
+  },
+  {
+   "hash": "cd291cc5",
+   "file": "cd291cc5d92be91001ed43a9f7395418.glb",
+   "category": "pantry",
+   "name": "nescafe_classic",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.599,
+    0.54,
+    1.103
+   ]
+  },
+  {
+   "hash": "d9125a9b",
+   "file": "d9125a9b50b4372a4cf19b68b4d1471f.glb",
+   "category": "pantry",
+   "name": "tuna_pack",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    1.03,
+    1.03,
+    0.628
+   ]
+  },
+  {
+   "hash": "e0ee674b",
+   "file": "e0ee674b03faab19a8d69d5cbc35a2a7.glb",
+   "category": "pantry",
+   "name": "tomato_paste",
+   "height": 0.24,
+   "target_tris": 20000,
+   "size": [
+    0.382,
+    0.352,
+    1.111
+   ]
+  },
+  {
+   "hash": "5bafff14",
+   "file": "5bafff140bf9197dfb93ffe14bdd9ff3.glb",
+   "category": "cleaning",
+   "name": "omo_detergent",
+   "height": 0.28,
+   "target_tris": 20000,
+   "size": [
+    1.117,
+    0.248,
+    0.42
+   ]
+  },
+  {
+   "hash": "9e2a2e86",
+   "file": "9e2a2e86c6c5f6605ab6f307a0fd173e.glb",
+   "category": "cleaning",
+   "name": "paper_towels",
+   "height": 0.28,
+   "target_tris": 20000,
+   "size": [
+    0.999,
+    0.656,
+    0.302
+   ]
+  },
+  {
+   "hash": "a4a01835",
+   "file": "a4a01835f7e6f740b63cbcc24bd38e28.glb",
+   "category": "frozen",
+   "name": "ice_cream_tubs",
+   "height": 0.22,
+   "target_tris": 20000,
+   "size": [
+    0.801,
+    0.8,
+    1.012
+   ]
+  },
+  {
+   "hash": "e7a10b90",
+   "file": "e7a10b90e2b5a78e366ec486086be4a4.glb",
+   "category": "equipment",
+   "name": "digital_scale",
+   "height": 0.45,
+   "target_tris": 45000,
+   "size": [
+    0.608,
+    0.734,
+    0.85
+   ]
+  },
+  {
+   "hash": "8b680ab6",
+   "file": "8b680ab60653616fe6d6acb4ece6c97a.glb",
+   "category": "equipment",
+   "name": "metal_grill",
+   "height": 0.45,
+   "target_tris": 45000,
+   "size": [
+    0.842,
+    0.888,
+    0.348
+   ]
+  },
+  {
+   "hash": "9aceff38",
+   "file": "9aceff38609ec193fec370e8234b875a.glb",
+   "category": "equipment",
+   "name": "metal_rack",
+   "height": 0.45,
+   "target_tris": 45000,
+   "size": [
+    0.663,
+    0.951,
+    0.446
+   ]
+  }
+ ]
+}

@@ -2,14 +2,10 @@ class_name Product
 extends StaticBody3D
 
 # Most goods are built from primitives (cheap, colourful, instantly readable).
-# A slice of each department uses one of the sculpted GLB props instead so the
-# floor and the shelves do not read as a wall of identical boxes.
-const HERO_MODELS := {
-	0: {"path": "res://assets/models/props/tomato_tray.glb", "scale": 0.30, "chance": 0.10, "height": 0.16},
-	4: {"path": "res://assets/models/props/cleaner_bottle.glb", "scale": 0.20, "chance": 0.16, "height": 0.26},
-}
-
-static var _hero_scenes: Dictionary = {}
+# A slice of each department uses one of the sculpted GLBs from the catalog
+# instead so the floor and the shelves do not read as a wall of identical
+# boxes. ModelCatalog walks a shuffled deck per department, so every sculpt in
+# the drop shows up before any of them repeats.
 
 var department: int = 0
 var base_color: Color = Color.WHITE
@@ -26,11 +22,13 @@ func setup(dept: int, color: Color) -> void:
 	rng.randomize()
 	var s := rng.randf_range(1.02, 1.28)
 	var box_height := 0.4
-	var hero := _hero_scene(dept)
-	if hero != null and rng.randf() < float(HERO_MODELS[dept]["chance"]):
-		box_height = float(HERO_MODELS[dept]["height"])
-		_build_hero(hero.instantiate(), float(HERO_MODELS[dept]["scale"]))
-	else:
+	var hero := _catalog_hero(dept, rng)
+	if not hero.is_empty():
+		var packed := ModelCatalog.scene(String(hero["path"]))
+		if packed != null:
+			box_height = float(hero["height"])
+			_build_hero(packed.instantiate(), float(hero["scale"]))
+	if _meshes.is_empty():
 		_meshes = ProductShapes.build(self, dept, color, rng, s)
 	for mi in _meshes:
 		_original_materials[mi] = mi.material_override
@@ -49,12 +47,10 @@ func setup(dept: int, color: Color) -> void:
 	collision_mask = 0
 
 
-static func _hero_scene(dept: int) -> PackedScene:
-	if not HERO_MODELS.has(dept):
-		return null
-	if not _hero_scenes.has(dept):
-		_hero_scenes[dept] = load(String(HERO_MODELS[dept]["path"]))
-	return _hero_scenes[dept]
+static func _catalog_hero(dept: int, rng: RandomNumberGenerator) -> Dictionary:
+	if dept < 0 or dept >= ModelCatalog.CHANCE.size():
+		return {}
+	return ModelCatalog.take(dept, rng)
 
 
 func _build_hero(inst: Node3D, s: float) -> void:
@@ -67,17 +63,7 @@ func _build_hero(inst: Node3D, s: float) -> void:
 		if mi == null:
 			continue
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		# The sculpted props ship with a fully metallic PBR material meant for a
-		# studio HDRI. Under the store's omni lights that reads almost black, so
-		# flatten it into a matte, brighter shop-shelf material.
-		var mat := mi.get_active_material(0)
-		if mat is StandardMaterial3D:
-			var copy := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
-			copy.metallic = 0.0
-			copy.roughness = clampf(copy.roughness + 0.25, 0.35, 1.0)
-			copy.albedo_color = copy.albedo_color.lightened(0.12)
-			copy.vertex_color_use_as_albedo = false
-			mi.material_override = copy
+		ProductShapes.shop_material(mi)
 		_meshes.append(mi)
 
 

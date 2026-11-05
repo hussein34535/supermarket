@@ -168,6 +168,7 @@ assets/models/arm_left_mesh.res   # قفاز اليد اليمنى (مقصوص �
 assets/models/arm_right_mesh.res  # قفاز اليد اليسرى (مقصوص من الذراعين)
 assets/models/props/cleaner_bottle.glb  # قارورة منظف مجسّمة (منتج في قسم المنظفات) — 79KB
 assets/models/props/tomato_tray.glb     # صينية طماطم مجسّمة (منتج في قسم الفواكه) — 235KB
+assets/models/catalog/<القسم>/           # 64 مجسم مرتبين حسب القسم (فواكه/ألبان/مشروبات/سناكس/بقالة/منظفات/مجمدات/معدات)
 assets/shaders/character_walk.gdshader  # حركة المشي الإجرائية للشخصية
 assets/fonts/Cairo.ttf       # خط عربي (SIL OFL) لكل الواجهة ولافتات 3D
 tools/model_pipeline/         # خط تحسين الأصول (gltf-transform + Godot mesh tool)
@@ -184,6 +185,7 @@ scripts/
   shelf.gd                 # رف القسم: خانات، مخزون، سحب/تركيب
   product.gd               # منتج على الأرض
   product_shapes.gd        # مجسمات المنتجات حسب القسم + الخطوط
+  model_catalog.gd         # (مولّد) deck المجسمات لكل قسم + المعدات
   cash_pickup.gd           # عملات الأموال القابلة للجمع
   sfx.gd                   # مؤثرات صوتية إجرائية + همهمة المتجر
   ui.gd                    # HUD + لوحة الإدارة + الكاشير + السمعة + ملخص اليوم + الموبايل
@@ -204,6 +206,37 @@ scripts/
 | `cleaner_bottle.glb` (جديد) | 30.7 ميجا | **79 كيلو** · 1K مثلث | من `Downloads` |
 | `tomato_tray.glb` (جديد) | 25.4 ميجا | **235 كيلو** · 4K مثلث | من `Downloads` |
 | `worker_rigged.glb` + قفازات قديمة | 84 ميجا | **محذوفة** | غير مستخدمة |
+
+### دفعة الـ 64 موديل (catalog)
+
+كل مجسمات `Downloads/3d` (2.1 جيجا) اتحسّنت واتنظّمت في مجلدات حسب القسم:
+
+```
+assets/models/catalog/produce/    # 10 خضار وفاكهة
+assets/models/catalog/dairy/      # 8 ألبان
+assets/models/catalog/drinks/     # 16 مشروب
+assets/models/catalog/snacks/     # 12 سناك
+assets/models/catalog/pantry/     # 12 بقالة جافة (بتنزل في قسم السناكس)
+assets/models/catalog/cleaning/   # 2 منظفات
+assets/models/catalog/frozen/     # 1 مجمدات
+assets/models/catalog/equipment/  # 3 معدات: ميزان رقمي + رف معدني + شواية
+```
+
+النتيجة: **89.9 ميجا** بدل 2.1 جيجا (تخفيض 96%)، وكل موديل منها بيظهر في اللعبة:
+
+- المنتجات بتتوزّع على الأرض بنسبة 10–16% لكل قسم، و`model_catalog.gd` بيمشي على deck متخبّط لكل قسم — أول 11–24 منتج في القسم بيضمنوا إن كل مجسم يظهر مرة واحدة على الأقل قبل أي تكرار.
+- المعدات بتتحط كديكور: ميزان عند كل كاشير وفي ركن الفواكه، ورفين وشواية عند منطقة التوصيلات.
+- كل صندوق فواكه بقى فيه مجسمين حقيقيين (خس/كرنب/فلفل...) فوق الكرات البدائية.
+
+```bash
+# يبني الناقص فقط + يحدّث scripts/model_catalog.gd
+node tools/model_pipeline/build_catalog.js
+# إعادة بناء الكل من الصفر
+node tools/model_pipeline/build_catalog.js --force
+godot --headless --path . --import
+```
+
+`catalog.json` هو مصدر التقسيمة (hash → قسم/اسم/ارتفاع هدف/ميزانية مثلثات). الخط بيستخدم weld → simplify → تصغير النسائج (base 1024 / normal 1024 / metalRough 512) → WebP. نسائج الـ normal والـ metalRough بتتحفظ **بدون فقدان** لأن الضغط المفقود بيكسر انعكاس المعدن (ظهر كخط مائل على صينية الميزان).
 
 خط التحسين موجود في `tools/model_pipeline/`:
 
