@@ -140,6 +140,28 @@ func _capture_and_quit() -> void:
 				if player != null and is_instance_valid(player):
 					player.global_position = Vector3(5.0, 0.1, -7.0)
 					player.rotation.y = 0.0
+			"candy":
+				# QA: hold one specific wide pack to check its grip and framing.
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(0.0, 0.1, -4.0)
+					player.rotation.y = 0.0
+					var hero: Dictionary = {}
+					for e in ModelCatalog.DECKS[3]:
+						if String(e.get("name", "")) == "candy_bars":
+							hero = e
+					player.add_to_stack(3, hero)
+					player._ray_trash = false
+			"can":
+				# QA: hold one narrow can to check the same grip on a thin item.
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(0.0, 0.1, -4.0)
+					player.rotation.y = 0.0
+					var hero: Dictionary = {}
+					for e in ModelCatalog.DECKS[2]:
+						if String(e.get("name", "")) == "monster_black":
+							hero = e
+					player.add_to_stack(2, hero)
+					player._ray_trash = false
 			"delivery":
 				if player != null and is_instance_valid(player):
 					player.global_position = Vector3(-13.6, 0.1, 10.2)

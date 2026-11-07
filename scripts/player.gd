@@ -82,6 +82,7 @@ var _hand_l: Node3D
 var _hand_open: Node3D
 var _carry_holder: Node3D
 var _carry_pop: float = 0.0
+var _carry_lift: float = 0.0
 var _body_crouch: float = 0.0
 var _arm_r: Node3D
 var _arms_l: Node3D
@@ -1128,11 +1129,12 @@ func _refresh_carry() -> void:
 	var palm := _palm_point_pivot()
 	if hero.is_empty():
 		hero = ModelCatalog.pick(dept)
-	var fitted := 1.0
-	if not hero.is_empty():
-		fitted = float(hero.get("scale", 1.0)) * _carry_fit(hero)
-	var half_d := maxf(float(hero.get("d", 0.12)) * fitted, 0.02) * 0.5
-	_carry_holder.position = palm + Vector3(0.0, -0.022, half_d + 0.006)
+	var fit := _carry_fit(hero) if not hero.is_empty() else 1.0
+	var half_d := maxf(float(hero.get("d", 0.12)) * fit, 0.02) * 0.5
+	var half_w := maxf(float(hero.get("w", 0.12)) * fit, 0.02) * 0.5
+	# One-handed grip: the hand takes the right edge of the pack, so wide bags do
+	# not float centred in front of the palm with the fingers hidden behind them.
+	_carry_holder.position = palm + Vector3(-half_w + 0.02, -0.022, half_d + 0.006)
 	if not _build_carry_model(dept, rng, hero):
 		var holder := Node3D.new()
 		_carry_holder.add_child(holder)
@@ -1597,7 +1599,11 @@ func _update_viewmodel(delta: float, move_vec: Vector3) -> void:
 	_grabber_mode = move_toward(_grabber_mode, mode_target, delta * mode_step)
 	var mode_ease := _grabber_mode * _grabber_mode * (3.0 - 2.0 * _grabber_mode)
 	_grabber_pivot.position.y = -1.20 * (1.0 - mode_ease)
-	_open_pivot.position.y = -0.50 * mode_ease
+	# Holding a pack raises the whole open hand so the bottom of the product never
+	# disappears behind the fixed-height HUD on short windows.
+	var lift_target := 0.085 if not stack.is_empty() else 0.0
+	_carry_lift = lerpf(_carry_lift, lift_target, minf(delta * 8.0, 1.0))
+	_open_pivot.position.y = -0.50 * mode_ease + _carry_lift
 	_grabber_pivot.visible = _grabber_mode > 0.01
 	_open_pivot.visible = _grabber_mode < 0.99
 	_bag_pivot.visible = _grabber_mode > 0.01
