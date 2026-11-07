@@ -117,9 +117,13 @@ func _capture_and_quit() -> void:
 				if player != null and is_instance_valid(player):
 					player.global_position = Vector3(-17.2, 0.1, -0.9)
 					player.rotation.y = PI * 0.5
+			"shelf":
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(-16.0, 0.1, 6.4)
+					player.rotation.y = 0.0
 			"lanes":
 				if player != null and is_instance_valid(player):
-					player.global_position = Vector3(3.5, 0.1, 8.4)
+					player.global_position = Vector3(-1.5, 0.1, 8.2)
 					player.rotation.y = PI
 			"delivery":
 				if player != null and is_instance_valid(player):
@@ -560,8 +564,8 @@ func _build_checkouts() -> void:
 		sign.modulate = Color(1, 1, 1)
 		sign.outline_size = 10
 		sign.position = Vector3(cx - 1.5, 2.5, 11.5)
-		sign.double_sided = true
 		add_child(sign)
+		_mirror_sign(sign)
 
 		var status := Label3D.new()
 		status.text = "مفتوح"
@@ -570,8 +574,8 @@ func _build_checkouts() -> void:
 		status.pixel_size = 0.0034
 		status.outline_size = 8
 		status.position = Vector3(cx - 1.5, 2.12, 11.5)
-		status.double_sided = true
 		add_child(status)
+		_mirror_sign(status)
 		lane_status_labels.append(status)
 
 		var lane = CheckoutScript.new()
@@ -610,6 +614,7 @@ func _build_delivery_area() -> void:
 	sign.pixel_size = 0.004
 	sign.outline_size = 12
 	sign.position = DELIVERY_SPOT + Vector3(0, 2.55, 1.50)
+	sign.rotation.y = PI
 	add_child(sign)
 	var sub := Label3D.new()
 	sub.text = "افتح الكراتين بـ E  •  اطلب المزيد من تبويب المتجر"
@@ -619,6 +624,7 @@ func _build_delivery_area() -> void:
 	sub.modulate = Color(0.75, 1.0, 0.8)
 	sub.outline_size = 8
 	sub.position = DELIVERY_SPOT + Vector3(0, 2.24, 1.50)
+	sub.rotation.y = PI
 	add_child(sub)
 
 
@@ -664,6 +670,7 @@ func _build_entrance() -> void:
 	welcome.modulate = Color(1, 1, 1)
 	welcome.outline_size = 12
 	welcome.position = Vector3(0, 3.35, door_z - 0.28)
+	welcome.rotation.y = PI
 	welcome.double_sided = true
 	add_child(welcome)
 
@@ -675,6 +682,7 @@ func _build_entrance() -> void:
 	exit_label.modulate = Color(0.6, 1.0, 0.65)
 	exit_label.outline_size = 10
 	exit_label.position = Vector3(0, 2.55, door_z - 0.3)
+	exit_label.rotation.y = PI
 	exit_label.double_sided = true
 	add_child(exit_label)
 
@@ -811,8 +819,8 @@ func _build_floor_debris() -> void:
 	sign_label.modulate = Color(0.08, 0.08, 0.07)
 	sign_label.outline_size = 0
 	sign_label.position = sign_pos + Vector3(0, 0.47, 0.026)
-	sign_label.double_sided = true
 	add_child(sign_label)
+	_mirror_sign(sign_label, 0.06)
 
 
 func _build_entry_mat() -> void:
@@ -899,6 +907,7 @@ func _build_aisle_signs() -> void:
 		lbl.position = pos + Vector3(0, 0.02, 0.045)
 		lbl.double_sided = true
 		add_child(lbl)
+		_mirror_sign(lbl)
 		for side in [-1.0, 1.0]:
 			_wall_box(Vector3(0.016, 0.55, 0.016), pos + Vector3(side * 1.65, 0.5, 0), hang, false)
 
@@ -988,6 +997,7 @@ func _build_branding() -> void:
 	title.outline_size = 8
 	title.position = Vector3(0, 3.36, -3.44)
 	add_child(title)
+	_mirror_sign(title, 0.14)
 
 	var sub := Label3D.new()
 	sub.text = "طازج   •   يومي   •   ودود"
@@ -997,6 +1007,7 @@ func _build_branding() -> void:
 	sub.modulate = Color(0.95, 0.86, 0.6)
 	sub.position = Vector3(0, 3.04, -3.44)
 	add_child(sub)
+	_mirror_sign(sub, 0.14)
 
 	var back := _wall_box(Vector3(9.2, 0.46, 0.1), Vector3(0, 3.2, -15.75), green, false)
 	back.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1219,8 +1230,22 @@ func _build_sale_signs() -> void:
 		lbl.position = p + Vector3(0, 3.0, 0.04)
 		lbl.double_sided = true
 		add_child(lbl)
+		_mirror_sign(lbl)
 		_wall_box(Vector3(0.02, 0.6, 0.02), p + Vector3(-0.5, 3.6, 0), hang_mat, false)
 		_wall_box(Vector3(0.02, 0.6, 0.02), p + Vector3(0.5, 3.6, 0), hang_mat, false)
+
+
+# Label3D is only readable from its front face. Hanging boards are seen from both
+# directions, so every visible sign gets a back-to-back twin; without it Arabic
+# reads reversed from the far side.
+func _mirror_sign(lbl: Label3D, gap: float = 0.09) -> void:
+	lbl.double_sided = false
+	var back := lbl.duplicate() as Label3D
+	back.double_sided = false
+	back.rotation.y = lbl.rotation.y + PI
+	back.position = lbl.position - Vector3(0, 0, gap)
+	add_child(back)
+	lbl.set_meta("mirror_twin", back)
 
 
 func _wall_box(size: Vector3, pos: Vector3, mat: Material, collide: bool = true) -> MeshInstance3D:
@@ -1273,7 +1298,7 @@ func _seed_shelves() -> void:
 	# would walk in, find empty shelves and leave angry. Seeded stock is free and
 	# does not count towards the stocking goal.
 	for shelf in shelves:
-		var target := int(float(shelf.capacity_total()) * 0.20)
+		var target := int(float(shelf.capacity_total()) * 0.35)
 		for i in target:
 			shelf.place_product(GameState.DEPARTMENT_COLORS[shelf.department], Vector3.ZERO)
 
@@ -1826,6 +1851,10 @@ func _sync_store() -> void:
 		else:
 			lbl.text = "مفتوح"
 			lbl.modulate = Color(0.6, 1.0, 0.65)
+		var twin := lbl.get_meta("mirror_twin", null) as Label3D
+		if twin != null and is_instance_valid(twin):
+			twin.text = lbl.text
+			twin.modulate = lbl.modulate
 	checkouts[3].staffed = open and int(GameState.staff.get("cashier", 0)) > 0
 
 

@@ -8,7 +8,7 @@
    "category": "produce",
    "name": "red_grapes",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.965,
     0.972,
@@ -21,7 +21,7 @@
    "category": "produce",
    "name": "green_grapes",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.127,
     1.112,
@@ -34,7 +34,7 @@
    "category": "produce",
    "name": "red_onions",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.139,
     0.542,
@@ -47,7 +47,7 @@
    "category": "produce",
    "name": "lettuce",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.892,
     0.931,
@@ -60,7 +60,7 @@
    "category": "produce",
    "name": "broccoli",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.028,
     1.016,
@@ -73,7 +73,7 @@
    "category": "produce",
    "name": "cabbage",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.004,
     0.982,
@@ -86,7 +86,7 @@
    "category": "produce",
    "name": "red_peppers",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.165,
     1.163,
@@ -99,7 +99,7 @@
    "category": "produce",
    "name": "zucchini",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.199,
     0.231,
@@ -112,7 +112,7 @@
    "category": "produce",
    "name": "potatoes",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.857,
     0.83,
@@ -125,7 +125,7 @@
    "category": "produce",
    "name": "carrots",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.602,
     1.159,
@@ -138,7 +138,7 @@
    "category": "dairy",
    "name": "milk_cartons",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.396,
     0.345,
@@ -151,7 +151,7 @@
    "category": "dairy",
    "name": "alpro_soy",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.394,
     0.386,
@@ -164,7 +164,7 @@
    "category": "dairy",
    "name": "butter_blocks",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.494,
     0.273,
@@ -177,7 +177,7 @@
    "category": "dairy",
    "name": "kiri_cheese",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.031,
     0.229,
@@ -190,7 +190,7 @@
    "category": "dairy",
    "name": "alpro_almond",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1,
     0.656,
@@ -203,7 +203,7 @@
    "category": "dairy",
    "name": "zad_milk",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.862,
     0.863,
@@ -216,7 +216,7 @@
    "category": "dairy",
    "name": "alpro_coconut",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.386,
     0.364,
@@ -229,7 +229,7 @@
    "category": "dairy",
    "name": "oat_milk",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.404,
     0.412,
@@ -242,7 +242,7 @@
    "category": "drinks",
    "name": "monster_black",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.457,
     0.457,
@@ -255,7 +255,7 @@
    "category": "drinks",
    "name": "redbull_cans",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.458,
     0.458,
@@ -268,7 +268,7 @@
    "category": "drinks",
    "name": "pepsi_cans",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.147,
     0.231,
@@ -281,7 +281,7 @@
    "category": "drinks",
    "name": "lipton_tea",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.684,
     0.165,
@@ -294,7 +294,7 @@
    "category": "drinks",
    "name": "aquafina_water",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.419,
     0.218,
@@ -307,7 +307,7 @@
    "category": "drinks",
    "name": "monster_blue",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.448,
     0.448,
@@ -320,7 +320,7 @@
    "category": "drinks",
    "name": "dark_bottles",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.348,
     0.349,
@@ -333,7 +333,7 @@
    "category": "drinks",
    "name": "suntop_orange",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.601,
     0.353,
@@ -346,7 +346,7 @@
    "category": "drinks",
    "name": "kdd_juice",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.045,
     0.252,
@@ -359,7 +359,7 @@
    "category": "drinks",
    "name": "monster_white",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.463,
     0.465,
@@ -372,7 +372,7 @@
    "category": "drinks",
    "name": "nestle_juice",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.398,
     0.338,
@@ -385,7 +385,7 @@
    "category": "drinks",
    "name": "sevenup_cans",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.437,
     0.231,
@@ -398,7 +398,7 @@
    "category": "drinks",
    "name": "monster_green",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.453,
     0.455,
@@ -411,7 +411,7 @@
    "category": "drinks",
    "name": "coca_cola",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.577,
     0.576,
@@ -424,7 +424,7 @@
    "category": "drinks",
    "name": "sevenup_pack",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.642,
     0.409,
@@ -437,7 +437,7 @@
    "category": "drinks",
    "name": "coke_cans",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.414,
     0.455,
@@ -450,7 +450,7 @@
    "category": "snacks",
    "name": "lays_yellow",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.679,
     0.23,
@@ -463,7 +463,7 @@
    "category": "snacks",
    "name": "lays_classic",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.677,
     0.212,
@@ -476,7 +476,7 @@
    "category": "snacks",
    "name": "pringles",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.392,
     0.392,
@@ -489,7 +489,7 @@
    "category": "snacks",
    "name": "candy_bars",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.964,
     0.236,
@@ -502,7 +502,7 @@
    "category": "snacks",
    "name": "halwani_box",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.651,
     0.368,
@@ -515,7 +515,7 @@
    "category": "snacks",
    "name": "crispbread",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.445,
     0.444,
@@ -528,7 +528,7 @@
    "category": "snacks",
    "name": "cadbury_box",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.07,
     0.262,
@@ -541,7 +541,7 @@
    "category": "snacks",
    "name": "orange_candy",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.79,
     0.862,
@@ -554,7 +554,7 @@
    "category": "snacks",
    "name": "doritos",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.686,
     0.212,
@@ -567,7 +567,7 @@
    "category": "snacks",
    "name": "lays_wave",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.717,
     0.241,
@@ -580,7 +580,7 @@
    "category": "snacks",
    "name": "snickers",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.645,
     0.247,
@@ -593,7 +593,7 @@
    "category": "snacks",
    "name": "chocolate_bars",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.075,
     0.281,
@@ -606,7 +606,7 @@
    "category": "pantry",
    "name": "tuna_cans",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.953,
     0.953,
@@ -619,7 +619,7 @@
    "category": "pantry",
    "name": "mayo_ketchup",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.556,
     0.32,
@@ -632,7 +632,7 @@
    "category": "pantry",
    "name": "nescafe_jars",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.54,
     0.341,
@@ -645,7 +645,7 @@
    "category": "pantry",
    "name": "cooking_oil",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.405,
     0.383,
@@ -658,7 +658,7 @@
    "category": "pantry",
    "name": "lipton_box",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.713,
     0.315,
@@ -671,7 +671,7 @@
    "category": "pantry",
    "name": "ketchup_cans",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.546,
     0.323,
@@ -684,7 +684,7 @@
    "category": "pantry",
    "name": "oil_bottles",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.428,
     0.264,
@@ -697,7 +697,7 @@
    "category": "pantry",
    "name": "coffee_beans",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.665,
     0.149,
@@ -710,7 +710,7 @@
    "category": "pantry",
    "name": "olive_oil",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.385,
     0.291,
@@ -723,7 +723,7 @@
    "category": "pantry",
    "name": "nescafe_classic",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.599,
     0.54,
@@ -736,7 +736,7 @@
    "category": "pantry",
    "name": "tuna_pack",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.03,
     1.03,
@@ -749,7 +749,7 @@
    "category": "pantry",
    "name": "tomato_paste",
    "height": 0.24,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.382,
     0.352,
@@ -762,7 +762,7 @@
    "category": "cleaning",
    "name": "omo_detergent",
    "height": 0.28,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     1.117,
     0.248,
@@ -775,7 +775,7 @@
    "category": "cleaning",
    "name": "paper_towels",
    "height": 0.28,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.999,
     0.656,
@@ -788,7 +788,7 @@
    "category": "frozen",
    "name": "ice_cream_tubs",
    "height": 0.22,
-   "target_tris": 20000,
+   "target_tris": 6000,
    "size": [
     0.801,
     0.8,

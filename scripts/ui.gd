@@ -430,7 +430,7 @@ func _hud_action(kind: String, key: String, tip: String, action: Callable) -> Bu
 
 
 func _powerup_button(index: int) -> Button:
-	var names: Array[String] = ["إظهار", "زوجين", "أرفف", "ترتيب"]
+	var names: Array[String] = ["إظهار", "مزدوج", "أرفف", "ترتيب"]
 	var icons: Array[String] = ["sparkle", "cart", "tag", "box"]
 	var accents: Array[Color] = [C_GOLD, C_GREEN, C_BLUE, C_PURPLE]
 	var accent := accents[index]
@@ -587,7 +587,7 @@ func _build_hud() -> void:
 	cap_col.add_theme_constant_override("separation", -2)
 	cap_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cap_row.add_child(cap_col)
-	capacity_label = _label("الحمل 0 من 6", 13, C_GOLD)
+	capacity_label = _label("الحمولة 0 من 6", 13, C_GOLD)
 	capacity_label.add_theme_font_override("font", _bold())
 	cap_col.add_child(capacity_label)
 	top_item_label = _label("", 9, C_MUTED)
@@ -794,7 +794,7 @@ func _build_start_banner() -> void:
 	var gl := _label("هدف المستوى", 11, C_MUTED)
 	gl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gh.add_child(gl)
-	var reward := _label("+$%d مكافأة" % GameState.level_bonus(), 11, C_GREEN)
+	var reward := _label("مكافأة $%d" % GameState.level_bonus(), 11, C_GREEN)
 	gh.add_child(reward)
 	var goal_text := _label("رتّب %d منتج على الأرفف الصح" % GameState.level_target(), 15, C_TEXT)
 	goal_text.add_theme_font_override("font", _bold())
@@ -1073,7 +1073,7 @@ func _build_upgrades_page(page: VBoxContainer) -> void:
 	kpi_combo_label = k3[1] as Label
 	kpis.add_child(k3[0] as Control)
 
-	_section(page, "الحركة والحمل", "speed", C_TEAL)
+	_section(page, "الحركة والحمولة", "speed", C_TEAL)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 9)
@@ -1081,7 +1081,7 @@ func _build_upgrades_page(page: VBoxContainer) -> void:
 	page.add_child(grid)
 	speed_btn = _shop_card(grid, "سرعة الحركة", "امشي وأجري أسرع", C_TEAL, "speed", _buy_speed)
 	reach_btn = _shop_card(grid, "مسافة التفاعل", "التقط من مسافة أطول", C_BLUE, "reach", _buy_reach)
-	cap_btn = _shop_card(grid, "سعة الحمل", "شيل منتجات أكتر", C_GOLD, "capacity", _buy_cap)
+	cap_btn = _shop_card(grid, "سعة الحمولة", "شيل منتجات أكتر", C_GOLD, "capacity", _buy_cap)
 	grid.add_child(_tip_card("نصيحة", "رتّب منتجات ورا بعض بسرعة عشان ترفع الكومبو لحد x3.", "sparkle", C_GOLD))
 
 	_section(page, "اقتصاد المتجر", "coin", C_GOLD)
@@ -1902,7 +1902,7 @@ func _show_level_banner(level: int, bonus: int) -> void:
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(name_label)
 
-	var reward := _label("+$%d مكافأة  •  زبائن جدد وصلوا" % bonus if bonus > 0 else "المستوى النهائي  •  رتّب كل الـ 852 منتج", 11, C_MUTED)
+	var reward := _label("مكافأة $%d  •  زبائن جدد وصلوا" % bonus if bonus > 0 else "المستوى النهائي  •  رتّب كل الـ 852 منتج", 11, C_MUTED)
 	reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(reward)
 
@@ -1916,7 +1916,7 @@ func _show_level_banner(level: int, bonus: int) -> void:
 func _update_capacity() -> void:
 	if capacity_label == null or player == null:
 		return
-	capacity_label.text = "الحمل %d من %d" % [player.stack.size(), GameState.capacity()]
+	capacity_label.text = "الحمولة %d من %d" % [player.stack.size(), GameState.capacity()]
 	if player.stack.is_empty():
 		top_item_label.text = "إيدك فاضية"
 		top_item_label.add_theme_color_override("font_color", C_MUTED)
@@ -1971,7 +1971,7 @@ func _update_shop() -> void:
 		return
 	_set_shop_btn(speed_btn, "سرعة الحركة", GameState.speed_level, GameState.speed_cost())
 	_set_shop_btn(reach_btn, "مسافة التفاعل", GameState.reach_level, GameState.reach_cost())
-	_set_shop_btn(cap_btn, "سعة الحمل", GameState.capacity_level, GameState.capacity_cost())
+	_set_shop_btn(cap_btn, "سعة الحمولة", GameState.capacity_level, GameState.capacity_cost())
 	_set_shop_btn(clean_btn, "قيمة التنظيف", GameState.clean_level, GameState.clean_cost())
 	for i in 4:
 		_set_shop_btn(powerup_shop_btns[i], GameState.POWERUP_NAMES[i], GameState.powerup_levels[i], GameState.powerup_cost(i))
@@ -2545,7 +2545,7 @@ func _buy_reach() -> void:
 func _buy_cap() -> void:
 	if GameState.try_buy_capacity():
 		Sfx.play("upgrade")
-		show_toast("سعة الحمل اتطوّرت!")
+		show_toast("سعة الحمولة اتطوّرت!")
 		_update_capacity()
 	else:
 		Sfx.play("error", 0.8, -8.0)

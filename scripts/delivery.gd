@@ -81,8 +81,12 @@ func setup(department: int, amount: int, rng: RandomNumberGenerator) -> void:
 	label.pixel_size = 0.0028
 	label.modulate = Color(1, 1, 1)
 	label.outline_size = 6
+	# The crate sits at the back wall and is seen from the store side, which is
+	# the -Z face. Rotating the label keeps Arabic reading left-to-right correct;
+	# double_sided would mirror it from behind.
 	label.position = Vector3(0, 0.40, -0.392)
-	label.double_sided = true
+	label.rotation.y = PI
+	label.double_sided = false
 	add_child(label)
 
 	var shape := CollisionShape3D.new()

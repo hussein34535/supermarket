@@ -24,7 +24,7 @@ const only = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[
 const force = process.argv.includes('--force');
 
 const args = process.argv.slice(2);
-const opt = { base: 1024, normal: 1024, mr: 512, quality: 90 };
+const opt = { base: 512, normal: 512, mr: 256, quality: 88 };
 for (const a of args) {
   const m = a.match(/^--(base|normal|mr|quality)=(\d+)$/);
   if (m) opt[m[1]] = parseInt(m[2], 10);
@@ -40,17 +40,20 @@ if (fs.existsSync(BUILT_JSON)) {
   }
 }
 
-// How the catalog is exposed to the game. Products get shrunk to the target
-// height of their department so a bag of crisps and a milk carton read at a
-// similar size on the floor; the two legacy props are folded into the decks so
-// nothing in assets/models goes unused.
+// How the catalog is exposed to the game. Each sculpt is scaled to a readable
+// real-world height, then capped by its footprint so wide display trays and
+// multi-packs do not turn into metre-wide planks on the floor.
 const TARGET_HEIGHT = {
-  produce: 0.24, dairy: 0.26, drinks: 0.28, snacks: 0.24,
-  pantry: 0.26, cleaning: 0.30, frozen: 0.24,
+  produce: 0.34, dairy: 0.36, drinks: 0.38, snacks: 0.34,
+  pantry: 0.36, cleaning: 0.44, frozen: 0.34,
+};
+const MAX_FOOTPRINT = {
+  produce: 0.45, dairy: 0.42, drinks: 0.42, snacks: 0.42,
+  pantry: 0.42, cleaning: 0.50, frozen: 0.42,
 };
 const EXTRAS = [
-  { category: 'produce', name: 'tomato_tray', height: 0.287, path: 'res://assets/models/props/tomato_tray.glb' },
-  { category: 'cleaning', name: 'cleaner_bottle', height: 1.040, path: 'res://assets/models/props/cleaner_bottle.glb' },
+  { category: 'produce', name: 'tomato_tray', height: 0.287, w: 0.820, d: 1.032, path: 'res://assets/models/props/tomato_tray.glb' },
+  { category: 'cleaning', name: 'cleaner_bottle', height: 1.040, w: 0.650, d: 0.420, path: 'res://assets/models/props/cleaner_bottle.glb' },
 ];
 const DEPT_CATEGORIES = {
   0: ['produce'],
@@ -58,10 +61,12 @@ const DEPT_CATEGORIES = {
   2: ['drinks'],
   3: ['snacks', 'pantry'],
   4: ['cleaning'],
-  5: ['frozen'],
+  // Only one sculpt in the frozen drop; chilled dairy fills the rest of the
+  // freezer aisle so 142 products do not repeat a single tub.
+  5: ['frozen', 'dairy'],
 };
 const DEPT_NAMES = ['فواكه', 'ألبان', 'مشروبات', 'سناكس', 'منظفات', 'مجمدات'];
-const DEPT_CHANCE = [0.10, 0.10, 0.10, 0.12, 0.16, 0.16];
+const DEPT_CHANCE = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 const CATEGORY_ORDER = ['produce', 'dairy', 'drinks', 'snacks', 'pantry', 'cleaning', 'frozen', 'equipment'];
 
 function countTris(doc) {
@@ -104,6 +109,8 @@ async function build(entry) {
     return {
       ...entry, path: dst, skipped: true,
       height: prev ? prev.height : 0,
+      w: prev ? prev.w : 0,
+      d: prev ? prev.d : 0,
       trisOut: prev ? prev.tris : 0,
       bytes: fs.statSync(dst).size,
     };
@@ -122,7 +129,7 @@ async function build(entry) {
     await doc.transform(simplify({
       simplifier: MeshoptSimplifier,
       ratio,
-      error: entry.category === 'equipment' ? 0.001 : 0.002,
+      error: entry.category === 'equipment' ? 0.001 : 0.01,
       lockBorder: false,
     }));
   }
@@ -133,9 +140,10 @@ async function build(entry) {
   const keep = new Map(); // texture -> resized source buffer, for lossless re-encode
   for (const tex of root.listTextures()) {
     const s = slots.get(tex) || new Set(['base']);
-    let target = opt.base;
-    if (s.has('normal')) target = opt.normal;
-    else if (s.has('mr')) target = opt.mr;
+    const hi = entry.category === 'equipment';
+    let target = hi ? 1024 : opt.base;
+    if (s.has('normal')) target = hi ? 1024 : opt.normal;
+    else if (s.has('mr')) target = hi ? 512 : opt.mr;
     let buf = tex.getImage();
     if (!buf) continue;
     const meta = await sharp(buf).metadata();
@@ -170,7 +178,24 @@ async function build(entry) {
   return {
     ...entry, path: dst, skipped: false,
     trisIn, trisOut: countTris(doc), height, bytes,
+    w: bounds.max[0] - bounds.min[0],
+    d: bounds.max[2] - bounds.min[2],
     ms: Date.now() - t0,
+  };
+}
+
+function modelScale(category, r) {
+  const t = TARGET_HEIGHT[category];
+  if (!t || !r.height) return { scale: 1, height: 0, w: 0, d: 0 };
+  const cap = MAX_FOOTPRINT[category] || Infinity;
+  const foot = Math.max(r.w || 0, r.d || 0);
+  let scale = t / r.height;
+  if (foot > 0) scale = Math.min(scale, cap / foot);
+  return {
+    scale: +scale.toFixed(3),
+    height: +(r.height * scale).toFixed(3),
+    w: +((r.w || 0) * scale).toFixed(3),
+    d: +((r.d || 0) * scale).toFixed(3),
   };
 }
 
@@ -181,18 +206,12 @@ function writeGDScript(summary) {
     const t = TARGET_HEIGHT[r.category];
     if (!t) continue;
     if (!byCat.has(r.category)) byCat.set(r.category, []);
-    byCat.get(r.category).push({
-      name: r.name,
-      path: r.path,
-      scale: r.height > 0 ? +(t / r.height).toFixed(3) : 1,
-      height: t,
-    });
+    const m = modelScale(r.category, r);
+    byCat.get(r.category).push({ name: r.name, path: r.path, ...m });
   }
   for (const e of EXTRAS) {
-    const t = TARGET_HEIGHT[e.category];
-    byCat.get(e.category)?.push({
-      name: e.name, path: e.path, scale: +(t / e.height).toFixed(3), height: t,
-    });
+    const m = modelScale(e.category, e);
+    byCat.get(e.category)?.push({ name: e.name, path: e.path, ...m });
   }
   for (const list of byCat.values()) list.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -204,8 +223,8 @@ function writeGDScript(summary) {
   lines.push('#');
   lines.push('# One deck per gameplay department. Product.pick() draws from a shuffled');
   lines.push('# deck that only reshuffles once it is empty, so every sculpt is used');
-  lines.push('# before any repeat. scale shrinks each model to the department target');
-  lines.push('# height; height is the matching collider / pivot height.');
+  lines.push('# before any repeat. scale shrinks each model to a readable height,');
+  lines.push('# height/w/d are the scaled bounds used by the collider and shelf fit.');
   lines.push('');
   lines.push(`const CHANCE: Array[float] = [${DEPT_CHANCE.map(v => v.toFixed(2)).join(', ')}]`);
   lines.push('');
@@ -214,7 +233,7 @@ function writeGDScript(summary) {
     const list = cats.flatMap(c => byCat.get(c) || []);
     lines.push(`\t${dept}: [  # ${DEPT_NAMES[dept]}`);
     for (const m of list) {
-      lines.push(`\t\t{"name": "${m.name}", "path": "${m.path}", "scale": ${m.scale.toFixed(3)}, "height": ${m.height.toFixed(2)}},`);
+      lines.push(`\t\t{"name": "${m.name}", "path": "${m.path}", "scale": ${m.scale.toFixed(3)}, "height": ${m.height.toFixed(2)}, "w": ${m.w.toFixed(2)}, "d": ${m.d.toFixed(2)}},`);
     }
     lines.push('\t],');
   }
@@ -305,6 +324,8 @@ function writeGDScript(summary) {
     name: r.name,
     path: 'res://' + path.relative(ROOT, r.path).replace(/\\/g, '/'),
     height: +(r.height || 0).toFixed(3),
+    w: +(r.w || 0).toFixed(3),
+    d: +(r.d || 0).toFixed(3),
     tris: r.trisOut || 0,
     bytes: r.bytes || 0,
     error: r.error || null,

@@ -83,7 +83,7 @@ var powerup_cooldowns: Array[float] = [0.0, 0.0, 0.0, 0.0]
 var powerup_active: Array[float] = [0.0, 0.0, 0.0, 0.0]
 
 const POWERUP_NAMES: PackedStringArray = [
-	"إظهار المتطابق", "التقاط زوجين", "تحديد الأرفف", "ترتيب الحمل"
+	"إظهار المتطابق", "التقاط منتجين", "تحديد الأرفف", "ترتيب الحمولة"
 ]
 const POWERUP_KEYS: PackedStringArray = ["1", "2", "3", "4"]
 

@@ -236,6 +236,10 @@ func place_product(color: Color, near: Vector3 = Vector3.ZERO) -> bool:
 			if d < best:
 				best = d
 				pick = i
+	elif _free_slots.size() > 1:
+		# Seeding passes no point, so scatter the starting stock over the whole
+		# rack instead of packing the bottom row from the far end inwards.
+		pick = randi() % _free_slots.size()
 	var slot_index: int = _free_slots[pick]
 	_free_slots.remove_at(pick)
 	var slot := _slots[slot_index]
@@ -245,15 +249,42 @@ func place_product(color: Color, near: Vector3 = Vector3.ZERO) -> bool:
 	rng.seed = placed_count * 7919 + department * 104729
 	var holder := Node3D.new()
 	holder.position = slot.origin
-	holder.rotation.y = rng.randf_range(-0.35, 0.35)
+	holder.rotation.y = rng.randf_range(-0.5, 0.5)
 	add_child(holder)
-	ProductShapes.build(holder, department, color, rng, 0.68)
+	_build_shelf_model(holder, rng)
 	holder.scale = Vector3(0.01, 0.01, 0.01)
 	var tw := create_tween()
 	tw.tween_property(holder, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	shelf_products.append(holder)
 	_placed_slots.append(slot_index)
 	return true
+
+
+func _build_shelf_model(holder: Node3D, rng: RandomNumberGenerator) -> void:
+	# Shelves draw from the same sculpted catalog as the floor, otherwise stocking
+	# a product would swap the nice model back to a primitive box. Models are
+	# fitted to the slot: readable from the aisle, shallow enough that the three
+	# rows per bay do not swallow each other. ProductShapes is only a fallback.
+	var hero := ModelCatalog.pick(department)
+	if not hero.is_empty():
+		var packed := ModelCatalog.scene(String(hero["path"]))
+		if packed != null:
+			var inst := packed.instantiate() as Node3D
+			if inst != null:
+				var h := maxf(float(hero.get("height", 0.3)), 0.01)
+				var foot := maxf(float(hero.get("w", 0.3)), float(hero.get("d", 0.3)))
+				var fit := minf(0.34 / h, 0.32 / maxf(foot, 0.01))
+				inst.scale = Vector3.ONE * (float(hero.get("scale", 1.0)) * fit)
+				inst.rotation.y = rng.randf_range(-0.25, 0.25)
+				holder.add_child(inst)
+				for node in inst.find_children("*", "MeshInstance3D", true, false):
+					var mi := node as MeshInstance3D
+					if mi == null:
+						continue
+					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					ProductShapes.shop_material(mi)
+				return
+	ProductShapes.build(holder, department, dept_color, rng, 0.5)
 
 
 func set_glow(on: bool) -> void:

@@ -3,36 +3,44 @@
   "category": "produce",
   "name": "broccoli",
   "path": "res://assets/models/catalog/produce/broccoli.glb",
-  "height": 1.167,
-  "tris": 33104,
-  "bytes": 2360960,
+  "height": 1.163,
+  "w": 1.025,
+  "d": 1.015,
+  "tris": 6000,
+  "bytes": 590500,
   "error": null
  },
  {
   "category": "produce",
   "name": "cabbage",
   "path": "res://assets/models/catalog/produce/cabbage.glb",
-  "height": 0.955,
-  "tris": 20000,
-  "bytes": 1264108,
+  "height": 0.953,
+  "w": 1.001,
+  "d": 0.978,
+  "tris": 6000,
+  "bytes": 407692,
   "error": null
  },
  {
   "category": "produce",
   "name": "carrots",
   "path": "res://assets/models/catalog/produce/carrots.glb",
-  "height": 0.329,
-  "tris": 20000,
-  "bytes": 1378480,
+  "height": 0.328,
+  "w": 0.602,
+  "d": 1.158,
+  "tris": 6000,
+  "bytes": 482548,
   "error": null
  },
  {
   "category": "produce",
   "name": "green_grapes",
   "path": "res://assets/models/catalog/produce/green_grapes.glb",
-  "height": 0.944,
-  "tris": 20000,
-  "bytes": 1320944,
+  "height": 0.941,
+  "w": 1.126,
+  "d": 1.111,
+  "tris": 6000,
+  "bytes": 415968,
   "error": null
  },
  {
@@ -40,8 +48,10 @@
   "name": "lettuce",
   "path": "res://assets/models/catalog/produce/lettuce.glb",
   "height": 1.095,
-  "tris": 20000,
-  "bytes": 1011616,
+  "w": 0.891,
+  "d": 0.93,
+  "tris": 6000,
+  "bytes": 318872,
   "error": null
  },
  {
@@ -49,17 +59,21 @@
   "name": "potatoes",
   "path": "res://assets/models/catalog/produce/potatoes.glb",
   "height": 1.171,
-  "tris": 20000,
-  "bytes": 1636768,
+  "w": 0.856,
+  "d": 0.829,
+  "tris": 6000,
+  "bytes": 460388,
   "error": null
  },
  {
   "category": "produce",
   "name": "red_grapes",
   "path": "res://assets/models/catalog/produce/red_grapes.glb",
-  "height": 1.127,
-  "tris": 19998,
-  "bytes": 1967568,
+  "height": 1.126,
+  "w": 0.958,
+  "d": 0.969,
+  "tris": 7854,
+  "bytes": 702020,
   "error": null
  },
  {
@@ -67,8 +81,10 @@
   "name": "red_onions",
   "path": "res://assets/models/catalog/produce/red_onions.glb",
   "height": 0.549,
-  "tris": 20000,
-  "bytes": 1256328,
+  "w": 1.138,
+  "d": 0.541,
+  "tris": 6000,
+  "bytes": 365956,
   "error": null
  },
  {
@@ -76,8 +92,10 @@
   "name": "red_peppers",
   "path": "res://assets/models/catalog/produce/red_peppers.glb",
   "height": 1.053,
-  "tris": 20000,
-  "bytes": 1030516,
+  "w": 1.165,
+  "d": 1.161,
+  "tris": 6000,
+  "bytes": 295524,
   "error": null
  },
  {
@@ -85,8 +103,10 @@
   "name": "zucchini",
   "path": "res://assets/models/catalog/produce/zucchini.glb",
   "height": 0.225,
-  "tris": 20000,
-  "bytes": 1116572,
+  "w": 1.199,
+  "d": 0.231,
+  "tris": 6000,
+  "bytes": 331000,
   "error": null
  },
  {
@@ -94,8 +114,10 @@
   "name": "alpro_almond",
   "path": "res://assets/models/catalog/dairy/alpro_almond.glb",
   "height": 0.668,
-  "tris": 20000,
-  "bytes": 1329708,
+  "w": 0.999,
+  "d": 0.656,
+  "tris": 6000,
+  "bytes": 445304,
   "error": null
  },
  {
@@ -103,8 +125,10 @@
   "name": "alpro_coconut",
   "path": "res://assets/models/catalog/dairy/alpro_coconut.glb",
   "height": 1.106,
-  "tris": 20000,
-  "bytes": 1420796,
+  "w": 0.385,
+  "d": 0.364,
+  "tris": 6000,
+  "bytes": 443972,
   "error": null
  },
  {
@@ -112,17 +136,21 @@
   "name": "alpro_soy",
   "path": "res://assets/models/catalog/dairy/alpro_soy.glb",
   "height": 1.093,
-  "tris": 20000,
-  "bytes": 1635552,
+  "w": 0.394,
+  "d": 0.386,
+  "tris": 6000,
+  "bytes": 510876,
   "error": null
  },
  {
   "category": "dairy",
   "name": "butter_blocks",
   "path": "res://assets/models/catalog/dairy/butter_blocks.glb",
-  "height": 1.157,
-  "tris": 20000,
-  "bytes": 1120848,
+  "height": 1.156,
+  "w": 0.494,
+  "d": 0.273,
+  "tris": 6000,
+  "bytes": 345476,
   "error": null
  },
  {
@@ -130,8 +158,10 @@
   "name": "kiri_cheese",
   "path": "res://assets/models/catalog/dairy/kiri_cheese.glb",
   "height": 0.636,
-  "tris": 20000,
-  "bytes": 1472744,
+  "w": 1.031,
+  "d": 0.229,
+  "tris": 6000,
+  "bytes": 457472,
   "error": null
  },
  {
@@ -139,8 +169,10 @@
   "name": "milk_cartons",
   "path": "res://assets/models/catalog/dairy/milk_cartons.glb",
   "height": 1.102,
-  "tris": 20000,
-  "bytes": 1098288,
+  "w": 0.395,
+  "d": 0.345,
+  "tris": 6000,
+  "bytes": 371744,
   "error": null
  },
  {
@@ -148,17 +180,21 @@
   "name": "oat_milk",
   "path": "res://assets/models/catalog/dairy/oat_milk.glb",
   "height": 1.138,
-  "tris": 20000,
-  "bytes": 1070052,
+  "w": 0.404,
+  "d": 0.412,
+  "tris": 6000,
+  "bytes": 359972,
   "error": null
  },
  {
   "category": "dairy",
   "name": "zad_milk",
   "path": "res://assets/models/catalog/dairy/zad_milk.glb",
-  "height": 0.832,
-  "tris": 20000,
-  "bytes": 1454392,
+  "height": 0.831,
+  "w": 0.861,
+  "d": 0.863,
+  "tris": 6000,
+  "bytes": 448488,
   "error": null
  },
  {
@@ -166,8 +202,10 @@
   "name": "aquafina_water",
   "path": "res://assets/models/catalog/drinks/aquafina_water.glb",
   "height": 1.14,
-  "tris": 20000,
-  "bytes": 1422348,
+  "w": 0.418,
+  "d": 0.217,
+  "tris": 6000,
+  "bytes": 481720,
   "error": null
  },
  {
@@ -175,8 +213,10 @@
   "name": "coca_cola",
   "path": "res://assets/models/catalog/drinks/coca_cola.glb",
   "height": 1.104,
-  "tris": 20000,
-  "bytes": 1402712,
+  "w": 0.577,
+  "d": 0.576,
+  "tris": 6000,
+  "bytes": 438696,
   "error": null
  },
  {
@@ -184,26 +224,32 @@
   "name": "coke_cans",
   "path": "res://assets/models/catalog/drinks/coke_cans.glb",
   "height": 1.116,
-  "tris": 20000,
-  "bytes": 1396068,
+  "w": 0.413,
+  "d": 0.455,
+  "tris": 6000,
+  "bytes": 431896,
   "error": null
  },
  {
   "category": "drinks",
   "name": "dark_bottles",
   "path": "res://assets/models/catalog/drinks/dark_bottles.glb",
-  "height": 1.171,
-  "tris": 20000,
-  "bytes": 873240,
+  "height": 1.17,
+  "w": 0.348,
+  "d": 0.348,
+  "tris": 6000,
+  "bytes": 286844,
   "error": null
  },
  {
   "category": "drinks",
   "name": "kdd_juice",
   "path": "res://assets/models/catalog/drinks/kdd_juice.glb",
-  "height": 0.571,
-  "tris": 20000,
-  "bytes": 1576624,
+  "height": 0.57,
+  "w": 1.044,
+  "d": 0.252,
+  "tris": 6000,
+  "bytes": 496048,
   "error": null
  },
  {
@@ -211,8 +257,10 @@
   "name": "lipton_tea",
   "path": "res://assets/models/catalog/drinks/lipton_tea.glb",
   "height": 0.99,
-  "tris": 20000,
-  "bytes": 1951188,
+  "w": 0.684,
+  "d": 0.165,
+  "tris": 6000,
+  "bytes": 575840,
   "error": null
  },
  {
@@ -220,17 +268,21 @@
   "name": "monster_black",
   "path": "res://assets/models/catalog/drinks/monster_black.glb",
   "height": 1.141,
-  "tris": 20000,
-  "bytes": 1366628,
+  "w": 0.457,
+  "d": 0.457,
+  "tris": 6000,
+  "bytes": 452564,
   "error": null
  },
  {
   "category": "drinks",
   "name": "monster_blue",
   "path": "res://assets/models/catalog/drinks/monster_blue.glb",
-  "height": 1.147,
-  "tris": 20000,
-  "bytes": 2095452,
+  "height": 1.146,
+  "w": 0.448,
+  "d": 0.448,
+  "tris": 6000,
+  "bytes": 618784,
   "error": null
  },
  {
@@ -238,8 +290,10 @@
   "name": "monster_green",
   "path": "res://assets/models/catalog/drinks/monster_green.glb",
   "height": 1.143,
-  "tris": 20000,
-  "bytes": 1669768,
+  "w": 0.453,
+  "d": 0.455,
+  "tris": 6000,
+  "bytes": 513612,
   "error": null
  },
  {
@@ -247,8 +301,10 @@
   "name": "monster_white",
   "path": "res://assets/models/catalog/drinks/monster_white.glb",
   "height": 1.14,
-  "tris": 20000,
-  "bytes": 1680844,
+  "w": 0.463,
+  "d": 0.464,
+  "tris": 6000,
+  "bytes": 519080,
   "error": null
  },
  {
@@ -256,8 +312,10 @@
   "name": "nestle_juice",
   "path": "res://assets/models/catalog/drinks/nestle_juice.glb",
   "height": 1.105,
-  "tris": 20000,
-  "bytes": 1554340,
+  "w": 0.398,
+  "d": 0.338,
+  "tris": 6000,
+  "bytes": 487592,
   "error": null
  },
  {
@@ -265,8 +323,10 @@
   "name": "pepsi_cans",
   "path": "res://assets/models/catalog/drinks/pepsi_cans.glb",
   "height": 0.34,
-  "tris": 20000,
-  "bytes": 1695744,
+  "w": 1.147,
+  "d": 0.231,
+  "tris": 6000,
+  "bytes": 545596,
   "error": null
  },
  {
@@ -274,8 +334,10 @@
   "name": "redbull_cans",
   "path": "res://assets/models/catalog/drinks/redbull_cans.glb",
   "height": 1.118,
-  "tris": 20000,
-  "bytes": 1360824,
+  "w": 0.458,
+  "d": 0.458,
+  "tris": 6000,
+  "bytes": 437140,
   "error": null
  },
  {
@@ -283,8 +345,10 @@
   "name": "sevenup_cans",
   "path": "res://assets/models/catalog/drinks/sevenup_cans.glb",
   "height": 1.162,
-  "tris": 20000,
-  "bytes": 1338764,
+  "w": 0.437,
+  "d": 0.231,
+  "tris": 6000,
+  "bytes": 462308,
   "error": null
  },
  {
@@ -292,8 +356,10 @@
   "name": "sevenup_pack",
   "path": "res://assets/models/catalog/drinks/sevenup_pack.glb",
   "height": 1.003,
-  "tris": 20000,
-  "bytes": 1543396,
+  "w": 0.641,
+  "d": 0.409,
+  "tris": 6000,
+  "bytes": 475568,
   "error": null
  },
  {
@@ -301,26 +367,32 @@
   "name": "suntop_orange",
   "path": "res://assets/models/catalog/drinks/suntop_orange.glb",
   "height": 1.026,
-  "tris": 20000,
-  "bytes": 1361816,
+  "w": 0.601,
+  "d": 0.353,
+  "tris": 6000,
+  "bytes": 417928,
   "error": null
  },
  {
   "category": "snacks",
   "name": "cadbury_box",
   "path": "res://assets/models/catalog/snacks/cadbury_box.glb",
-  "height": 0.513,
-  "tris": 20000,
-  "bytes": 1252344,
+  "height": 0.512,
+  "w": 1.069,
+  "d": 0.262,
+  "tris": 6000,
+  "bytes": 418624,
   "error": null
  },
  {
   "category": "snacks",
   "name": "candy_bars",
   "path": "res://assets/models/catalog/snacks/candy_bars.glb",
-  "height": 0.721,
-  "tris": 20000,
-  "bytes": 1651380,
+  "height": 0.72,
+  "w": 0.963,
+  "d": 0.236,
+  "tris": 10000,
+  "bytes": 645068,
   "error": null
  },
  {
@@ -328,8 +400,10 @@
   "name": "chocolate_bars",
   "path": "res://assets/models/catalog/snacks/chocolate_bars.glb",
   "height": 0.538,
-  "tris": 20000,
-  "bytes": 1622828,
+  "w": 1.075,
+  "d": 0.28,
+  "tris": 6000,
+  "bytes": 513208,
   "error": null
  },
  {
@@ -337,8 +411,10 @@
   "name": "crispbread",
   "path": "res://assets/models/catalog/snacks/crispbread.glb",
   "height": 1.123,
-  "tris": 20000,
-  "bytes": 1773680,
+  "w": 0.444,
+  "d": 0.444,
+  "tris": 6000,
+  "bytes": 538924,
   "error": null
  },
  {
@@ -346,8 +422,10 @@
   "name": "doritos",
   "path": "res://assets/models/catalog/snacks/doritos.glb",
   "height": 0.985,
-  "tris": 20000,
-  "bytes": 1222412,
+  "w": 0.686,
+  "d": 0.212,
+  "tris": 6000,
+  "bytes": 411580,
   "error": null
  },
  {
@@ -355,8 +433,10 @@
   "name": "halwani_box",
   "path": "res://assets/models/catalog/snacks/halwani_box.glb",
   "height": 0.991,
-  "tris": 20000,
-  "bytes": 1730188,
+  "w": 0.651,
+  "d": 0.368,
+  "tris": 6000,
+  "bytes": 502164,
   "error": null
  },
  {
@@ -364,8 +444,10 @@
   "name": "lays_classic",
   "path": "res://assets/models/catalog/snacks/lays_classic.glb",
   "height": 0.995,
-  "tris": 20000,
-  "bytes": 1157512,
+  "w": 0.677,
+  "d": 0.211,
+  "tris": 6000,
+  "bytes": 405016,
   "error": null
  },
  {
@@ -373,26 +455,32 @@
   "name": "lays_wave",
   "path": "res://assets/models/catalog/snacks/lays_wave.glb",
   "height": 0.966,
-  "tris": 20000,
-  "bytes": 1620976,
+  "w": 0.717,
+  "d": 0.241,
+  "tris": 6000,
+  "bytes": 540772,
   "error": null
  },
  {
   "category": "snacks",
   "name": "lays_yellow",
   "path": "res://assets/models/catalog/snacks/lays_yellow.glb",
-  "height": 0.991,
-  "tris": 20000,
-  "bytes": 1099192,
+  "height": 0.99,
+  "w": 0.679,
+  "d": 0.23,
+  "tris": 6000,
+  "bytes": 356896,
   "error": null
  },
  {
   "category": "snacks",
   "name": "orange_candy",
   "path": "res://assets/models/catalog/snacks/orange_candy.glb",
-  "height": 1.12,
-  "tris": 20000,
-  "bytes": 1223564,
+  "height": 1.119,
+  "w": 0.789,
+  "d": 0.862,
+  "tris": 6000,
+  "bytes": 379028,
   "error": null
  },
  {
@@ -400,17 +488,21 @@
   "name": "pringles",
   "path": "res://assets/models/catalog/snacks/pringles.glb",
   "height": 1.161,
-  "tris": 20000,
-  "bytes": 1359460,
+  "w": 0.392,
+  "d": 0.392,
+  "tris": 6000,
+  "bytes": 408688,
   "error": null
  },
  {
   "category": "snacks",
   "name": "snickers",
   "path": "res://assets/models/catalog/snacks/snickers.glb",
-  "height": 1.017,
-  "tris": 20000,
-  "bytes": 1268548,
+  "height": 1.016,
+  "w": 0.644,
+  "d": 0.245,
+  "tris": 6000,
+  "bytes": 403556,
   "error": null
  },
  {
@@ -418,8 +510,10 @@
   "name": "coffee_beans",
   "path": "res://assets/models/catalog/pantry/coffee_beans.glb",
   "height": 1.009,
-  "tris": 20000,
-  "bytes": 1434496,
+  "w": 0.665,
+  "d": 0.148,
+  "tris": 6000,
+  "bytes": 433484,
   "error": null
  },
  {
@@ -427,8 +521,10 @@
   "name": "cooking_oil",
   "path": "res://assets/models/catalog/pantry/cooking_oil.glb",
   "height": 1.108,
-  "tris": 20000,
-  "bytes": 1607308,
+  "w": 0.405,
+  "d": 0.382,
+  "tris": 6000,
+  "bytes": 483372,
   "error": null
  },
  {
@@ -436,8 +532,10 @@
   "name": "ketchup_cans",
   "path": "res://assets/models/catalog/pantry/ketchup_cans.glb",
   "height": 1.133,
-  "tris": 20000,
-  "bytes": 1322940,
+  "w": 0.545,
+  "d": 0.323,
+  "tris": 6000,
+  "bytes": 432828,
   "error": null
  },
  {
@@ -445,8 +543,10 @@
   "name": "lipton_box",
   "path": "res://assets/models/catalog/pantry/lipton_box.glb",
   "height": 0.958,
-  "tris": 20000,
-  "bytes": 1359336,
+  "w": 0.713,
+  "d": 0.315,
+  "tris": 6000,
+  "bytes": 435376,
   "error": null
  },
  {
@@ -454,8 +554,10 @@
   "name": "mayo_ketchup",
   "path": "res://assets/models/catalog/pantry/mayo_ketchup.glb",
   "height": 1.133,
-  "tris": 20000,
-  "bytes": 1105144,
+  "w": 0.556,
+  "d": 0.32,
+  "tris": 6000,
+  "bytes": 365424,
   "error": null
  },
  {
@@ -463,8 +565,10 @@
   "name": "nescafe_classic",
   "path": "res://assets/models/catalog/pantry/nescafe_classic.glb",
   "height": 1.103,
-  "tris": 20000,
-  "bytes": 1282976,
+  "w": 0.598,
+  "d": 0.539,
+  "tris": 6000,
+  "bytes": 386960,
   "error": null
  },
  {
@@ -472,8 +576,10 @@
   "name": "nescafe_jars",
   "path": "res://assets/models/catalog/pantry/nescafe_jars.glb",
   "height": 1.043,
-  "tris": 20000,
-  "bytes": 1465124,
+  "w": 0.54,
+  "d": 0.341,
+  "tris": 6000,
+  "bytes": 455516,
   "error": null
  },
  {
@@ -481,8 +587,10 @@
   "name": "oil_bottles",
   "path": "res://assets/models/catalog/pantry/oil_bottles.glb",
   "height": 1.16,
-  "tris": 20000,
-  "bytes": 1590452,
+  "w": 0.426,
+  "d": 0.263,
+  "tris": 6000,
+  "bytes": 530028,
   "error": null
  },
  {
@@ -490,8 +598,10 @@
   "name": "olive_oil",
   "path": "res://assets/models/catalog/pantry/olive_oil.glb",
   "height": 1.163,
-  "tris": 20000,
-  "bytes": 1560400,
+  "w": 0.384,
+  "d": 0.29,
+  "tris": 6000,
+  "bytes": 494848,
   "error": null
  },
  {
@@ -499,8 +609,10 @@
   "name": "tomato_paste",
   "path": "res://assets/models/catalog/pantry/tomato_paste.glb",
   "height": 1.111,
-  "tris": 20000,
-  "bytes": 1247820,
+  "w": 0.382,
+  "d": 0.352,
+  "tris": 6000,
+  "bytes": 404572,
   "error": null
  },
  {
@@ -508,8 +620,10 @@
   "name": "tuna_cans",
   "path": "res://assets/models/catalog/pantry/tuna_cans.glb",
   "height": 0.733,
-  "tris": 20000,
-  "bytes": 1256276,
+  "w": 0.952,
+  "d": 0.953,
+  "tris": 6000,
+  "bytes": 409664,
   "error": null
  },
  {
@@ -517,17 +631,21 @@
   "name": "tuna_pack",
   "path": "res://assets/models/catalog/pantry/tuna_pack.glb",
   "height": 0.628,
-  "tris": 20000,
-  "bytes": 1321804,
+  "w": 1.03,
+  "d": 1.03,
+  "tris": 6000,
+  "bytes": 413252,
   "error": null
  },
  {
   "category": "cleaning",
   "name": "omo_detergent",
   "path": "res://assets/models/catalog/cleaning/omo_detergent.glb",
-  "height": 0.42,
-  "tris": 20000,
-  "bytes": 1633284,
+  "height": 0.419,
+  "w": 1.116,
+  "d": 0.247,
+  "tris": 6000,
+  "bytes": 502420,
   "error": null
  },
  {
@@ -535,8 +653,10 @@
   "name": "paper_towels",
   "path": "res://assets/models/catalog/cleaning/paper_towels.glb",
   "height": 0.302,
-  "tris": 20000,
-  "bytes": 1209792,
+  "w": 0.999,
+  "d": 0.656,
+  "tris": 6000,
+  "bytes": 367720,
   "error": null
  },
  {
@@ -544,8 +664,10 @@
   "name": "ice_cream_tubs",
   "path": "res://assets/models/catalog/frozen/ice_cream_tubs.glb",
   "height": 1.012,
-  "tris": 20000,
-  "bytes": 1093012,
+  "w": 0.8,
+  "d": 0.799,
+  "tris": 6000,
+  "bytes": 378564,
   "error": null
  },
  {
@@ -553,8 +675,10 @@
   "name": "digital_scale",
   "path": "res://assets/models/catalog/equipment/digital_scale.glb",
   "height": 0.85,
+  "w": 0.608,
+  "d": 0.734,
   "tris": 44998,
-  "bytes": 2528348,
+  "bytes": 2514172,
   "error": null
  },
  {
@@ -562,8 +686,10 @@
   "name": "metal_grill",
   "path": "res://assets/models/catalog/equipment/metal_grill.glb",
   "height": 0.348,
+  "w": 0.842,
+  "d": 0.888,
   "tris": 45000,
-  "bytes": 2472120,
+  "bytes": 2453480,
   "error": null
  },
  {
@@ -571,8 +697,10 @@
   "name": "metal_rack",
   "path": "res://assets/models/catalog/equipment/metal_rack.glb",
   "height": 0.446,
+  "w": 0.663,
+  "d": 0.951,
   "tris": 45000,
-  "bytes": 2524568,
+  "bytes": 2509656,
   "error": null
  }
 ]
