@@ -56,6 +56,9 @@ var hand_light: OmniLight3D
 var third_person: bool = false
 
 var stack: Array[int] = []
+# Exact catalog entry of every carried pack, in the same order as `stack`, so
+# the hand always shows the product that was actually picked up.
+var stack_models: Array[Dictionary] = []
 var cursor_locked: bool = true
 var look_dragging: bool = false
 
@@ -801,7 +804,7 @@ func _open_fingers(skel: Skeleton3D, side: String) -> void:
 	# directions finds nothing to fix. The curl axis is the bone's own local X, so
 	# each phalanx is turned back about that axis: a lot at the knuckle, less at the
 	# tip, which unfolds the hand without hyper-extending the fingertips.
-	var angles := [50.0, 38.0, 26.0]
+	var angles := [-6.0, -4.0, -2.0]
 	for f in ["index", "middle", "ring", "pinky"]:
 		for j in 3:
 			var bj := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
@@ -811,7 +814,30 @@ func _open_fingers(skel: Skeleton3D, side: String) -> void:
 			skel.set_bone_pose_rotation(bj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(angles[j])))
 	# The thumb rests across the palm. Rolling it the same way lifts the pad off the
 	# fingers so the hand reads as open instead of half-closed around nothing.
-	var thumb := [45.0, 31.0, 22.0]
+	var thumb := [-10.0, -6.0, -3.0]
+	for j in 3:
+		var tj := skel.find_bone("thumb_0%d_%s" % [j + 1, side])
+		if tj < 0:
+			continue
+		var rq := skel.get_bone_rest(tj).basis.get_rotation_quaternion()
+		skel.set_bone_pose_rotation(tj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(thumb[j])))
+	skel.force_update_all_bone_transforms()
+
+
+func _carry_fingers(skel: Skeleton3D, side: String) -> void:
+	# A half-closed cradle: the knuckles still leave the palm open enough for a
+	# pack to sit in it, while the middle and tip joints curl up around the front
+	# so the product is visibly held instead of balanced on a flat hand.
+	var angles := [28.0, 21.0, 13.0]
+	for f in ["index", "middle", "ring", "pinky"]:
+		for j in 3:
+			var bj := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
+			if bj < 0:
+				continue
+			var rq := skel.get_bone_rest(bj).basis.get_rotation_quaternion()
+			skel.set_bone_pose_rotation(bj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(angles[j])))
+	# The thumb comes over the front face of the pack rather than standing up.
+	var thumb := [16.0, 11.0, 7.0]
 	for j in 3:
 		var tj := skel.find_bone("thumb_0%d_%s" % [j + 1, side])
 		if tj < 0:
@@ -1085,11 +1111,29 @@ func _refresh_carry() -> void:
 		c.queue_free()
 	if stack.is_empty():
 		_carry_holder.visible = false
+		if _arms_open_skel != null:
+			_open_fingers(_arms_open_skel, "l")
 		return
 	var dept: int = stack.back()
+	var hero: Dictionary = stack_models.back() if stack_models.size() == stack.size() else {}
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 8123 + dept * 977 + stack.size() * 131
-	if not _build_carry_model(dept, rng):
+	# Close the fingers into a cradle so the pack is actually held instead of
+	# balancing on a flat open palm.
+	if _arms_open_skel != null:
+		_carry_fingers(_arms_open_skel, "l")
+	# The palm faces the player, so the pack has to sit in front of it with its
+	# back against the skin; the old target point is inside the wrist and made
+	# every product float above the hand.
+	var palm := _palm_point_pivot()
+	if hero.is_empty():
+		hero = ModelCatalog.pick(dept)
+	var fitted := 1.0
+	if not hero.is_empty():
+		fitted = float(hero.get("scale", 1.0)) * _carry_fit(hero)
+	var half_d := maxf(float(hero.get("d", 0.12)) * fitted, 0.02) * 0.5
+	_carry_holder.position = palm + Vector3(0.0, -0.022, half_d + 0.006)
+	if not _build_carry_model(dept, rng, hero):
 		var holder := Node3D.new()
 		_carry_holder.add_child(holder)
 		ProductShapes.build(holder, dept, GameState.DEPARTMENT_COLORS[dept], rng, 0.82)
@@ -1100,8 +1144,32 @@ func _refresh_carry() -> void:
 	_carry_pop = 1.0
 
 
-func _build_carry_model(dept: int, rng: RandomNumberGenerator) -> bool:
-	var hero := ModelCatalog.pick(dept)
+func _carry_fit(hero: Dictionary) -> float:
+	var h := maxf(float(hero.get("height", 0.3)), 0.01)
+	var foot := maxf(float(hero.get("w", 0.3)), float(hero.get("d", 0.3)))
+	return minf(0.24 / h, 0.21 / maxf(foot, 0.01))
+
+
+func _palm_point_pivot() -> Vector3:
+	# Centre of the palm skin in the open-hand pivot's space. The rig is held with
+	# the palm facing the player, so this is where the back of a carried pack
+	# touches the hand.
+	if _arms_open_skel == null or _open_pivot == null:
+		return HAND_OPEN_TARGET
+	var hb := _arms_open_skel.find_bone("hand_l")
+	var ib := _arms_open_skel.find_bone("index_01_l")
+	var pb := _arms_open_skel.find_bone("pinky_01_l")
+	if hb < 0 or ib < 0 or pb < 0:
+		return HAND_OPEN_TARGET
+	var knuckles := (_arms_open_skel.get_bone_global_pose(ib).origin + _arms_open_skel.get_bone_global_pose(pb).origin) * 0.5
+	var palm_s := (_arms_open_skel.get_bone_global_pose(hb).origin + knuckles) * 0.5 + _palm_normal(_arms_open_skel, "l") * PALM_OFFSET
+	var to_pivot := _open_pivot.global_transform.affine_inverse() * _arms_open_skel.global_transform
+	return to_pivot * palm_s
+
+
+func _build_carry_model(dept: int, rng: RandomNumberGenerator, hero: Dictionary) -> bool:
+	if hero.is_empty():
+		hero = ModelCatalog.pick(dept)
 	if hero.is_empty():
 		return false
 	var packed := ModelCatalog.scene(String(hero["path"]))
@@ -1112,14 +1180,12 @@ func _build_carry_model(dept: int, rng: RandomNumberGenerator) -> bool:
 		return false
 	# Held packs should read like a real item in the palm: tall enough to see at a
 	# glance, small enough that it never swallows the hand or the screen.
-	var h := maxf(float(hero.get("height", 0.3)), 0.01)
-	var foot := maxf(float(hero.get("w", 0.3)), float(hero.get("d", 0.3)))
-	var fit := minf(0.19 / h, 0.17 / maxf(foot, 0.01))
+	var fit := _carry_fit(hero)
 	inst.scale = Vector3.ONE * (float(hero.get("scale", 1.0)) * fit)
-	# The scan origin is the centre of the pack's base: sit it on the palm and let
-	# the label face the camera, with just a touch of wrist twist.
-	inst.position = Vector3(0.0, 0.004, 0.0)
-	inst.rotation.y = rng.randf_range(-0.16, 0.16)
+	# The scan origin is the centre of the pack's base: sit it on the palm and
+	# turn it to a three-quarter view so the label reads without looking pasted on.
+	inst.position = Vector3(0.0, -0.004, 0.0)
+	inst.rotation.y = rng.randf_range(0.20, 0.38)
 	_carry_holder.add_child(inst)
 	for node in inst.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
@@ -1434,6 +1500,7 @@ func _pick_up_product(product: Product) -> void:
 		Sfx.play("error", 1.1, -6.0)
 		return
 	stack.append(product.department)
+	stack_models.append(product.model_info.duplicate())
 	_hand_reach = 1.0
 	main.on_product_picked(product, self)
 	stack_changed.emit()
@@ -1444,6 +1511,7 @@ func _pick_up_product(product: Product) -> void:
 		var partner: Product = main.find_nearest_same_dept(product.department, product.global_position, 12.0)
 		if partner != null and stack.size() < GameState.capacity():
 			stack.append(partner.department)
+			stack_models.append(partner.model_info.duplicate())
 			main.on_product_picked(partner, self)
 			stack_changed.emit()
 			Sfx.play("pickup", 1.25)
@@ -1467,9 +1535,10 @@ func _place_on_shelf(shelf_node: Node) -> void:
 		Sfx.play("error", 1.1, -6.0)
 		return
 	stack.pop_back()
+	var hero: Dictionary = stack_models.pop_back() if not stack_models.is_empty() else {}
 	_hand_reach = 0.9
 	var at := ray.get_collision_point() if ray.is_colliding() else global_position
-	main.on_product_placed(shelf, dept, at)
+	main.on_product_placed(shelf, dept, at, hero)
 	stack_changed.emit()
 	interacted.emit(false, dept)
 
@@ -1478,15 +1547,17 @@ func drop_top() -> void:
 	if stack.is_empty():
 		return
 	var dept: int = stack.pop_back()
+	var hero: Dictionary = stack_models.pop_back() if not stack_models.is_empty() else {}
 	_grab_anim = 1.0
 	_hand_reach = 0.8
-	main.spawn_floor_product(dept, global_position + Vector3.ZERO, true)
+	main.spawn_floor_product(dept, global_position + Vector3.ZERO, true, hero)
 	stack_changed.emit()
 	Sfx.play("drop", 1.0, -4.0)
 
 
-func add_to_stack(dept: int) -> void:
+func add_to_stack(dept: int, model_info: Dictionary = {}) -> void:
 	stack.append(dept)
+	stack_models.append(model_info.duplicate())
 	stack_changed.emit()
 
 
@@ -1717,15 +1788,18 @@ func use_powerup(index: int) -> void:
 
 
 func organize_stack() -> void:
-	var counts := {}
-	for d in stack:
-		counts[d] = counts.get(d, 0) + 1
+	# Stable sort of the carried packs by department, keeping each pack's model
+	# attached to its slot so the hand does not swap to a different sculpt.
+	var order: Array[int] = []
+	for i in stack.size():
+		order.append(i)
+	order.sort_custom(func(a: int, b: int) -> bool: return stack[a] < stack[b])
 	var new_stack: Array[int] = []
-	var keys: Array = counts.keys()
-	keys.sort()
-	for k in keys:
-		for i in counts[k]:
-			new_stack.append(k)
+	var new_models: Array[Dictionary] = []
+	for i in order:
+		new_stack.append(stack[i])
+		new_models.append(stack_models[i] if i < stack_models.size() else {})
 	stack = new_stack
+	stack_models = new_models
 	_hand_reach = 0.6
 	stack_changed.emit()

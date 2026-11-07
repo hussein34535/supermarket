@@ -135,6 +135,11 @@ func _capture_and_quit() -> void:
 					player.add_to_stack(3)
 					player.add_to_stack(1)
 					player._ray_trash = false
+			"hand":
+				# QA: look at the bare hand with nothing carried.
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(5.0, 0.1, -7.0)
+					player.rotation.y = 0.0
 			"delivery":
 				if player != null and is_instance_valid(player):
 					player.global_position = Vector3(-13.6, 0.1, 10.2)
@@ -1902,9 +1907,9 @@ func _is_position_clear(p: Vector3) -> bool:
 	return true
 
 
-func spawn_floor_product(dept: int, pos: Vector3, dropped: bool) -> void:
+func spawn_floor_product(dept: int, pos: Vector3, dropped: bool, model_info: Dictionary = {}) -> void:
 	var product := Product.new()
-	product.setup(dept, GameState.DEPARTMENT_COLORS[dept])
+	product.setup(dept, GameState.DEPARTMENT_COLORS[dept], model_info)
 	var y := product.position.y
 	if dropped:
 		var ahead := player.global_transform.basis * Vector3(0, 0, -2.0)
@@ -1922,8 +1927,8 @@ func on_product_picked(product: Product, _p: Player = null) -> void:
 	product.queue_free()
 
 
-func on_product_placed(shelf: Shelf, dept: int, at: Vector3 = Vector3.ZERO) -> void:
-	shelf.place_product(GameState.DEPARTMENT_COLORS[dept], at if at != Vector3.ZERO else player.global_position)
+func on_product_placed(shelf: Shelf, dept: int, at: Vector3 = Vector3.ZERO, model_info: Dictionary = {}) -> void:
+	shelf.place_product(GameState.DEPARTMENT_COLORS[dept], at if at != Vector3.ZERO else player.global_position, model_info)
 	var payout := GameState.register_placement(dept)
 	GameState.add_cash(payout, "stock")
 	GameState.add_placed(1)

@@ -221,7 +221,7 @@ func take_product() -> int:
 	return department
 
 
-func place_product(color: Color, near: Vector3 = Vector3.ZERO) -> bool:
+func place_product(color: Color, near: Vector3 = Vector3.ZERO, model_info: Dictionary = {}) -> bool:
 	if _free_slots.is_empty():
 		return false
 	# Fill the shelf where the shopper is standing. Taking the next slot in a fixed
@@ -251,7 +251,7 @@ func place_product(color: Color, near: Vector3 = Vector3.ZERO) -> bool:
 	holder.position = slot.origin
 	holder.rotation.y = rng.randf_range(-0.5, 0.5)
 	add_child(holder)
-	_build_shelf_model(holder, rng)
+	_build_shelf_model(holder, rng, model_info)
 	holder.scale = Vector3(0.01, 0.01, 0.01)
 	var tw := create_tween()
 	tw.tween_property(holder, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -260,12 +260,12 @@ func place_product(color: Color, near: Vector3 = Vector3.ZERO) -> bool:
 	return true
 
 
-func _build_shelf_model(holder: Node3D, rng: RandomNumberGenerator) -> void:
+func _build_shelf_model(holder: Node3D, rng: RandomNumberGenerator, model_info: Dictionary = {}) -> void:
 	# Shelves draw from the same sculpted catalog as the floor, otherwise stocking
 	# a product would swap the nice model back to a primitive box. Models are
 	# fitted to the slot: readable from the aisle, shallow enough that the three
 	# rows per bay do not swallow each other. ProductShapes is only a fallback.
-	var hero := ModelCatalog.pick(department)
+	var hero: Dictionary = model_info if not model_info.is_empty() else ModelCatalog.pick(department)
 	if not hero.is_empty():
 		var packed := ModelCatalog.scene(String(hero["path"]))
 		if packed != null:

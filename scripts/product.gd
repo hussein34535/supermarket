@@ -9,6 +9,7 @@ extends StaticBody3D
 
 var department: int = 0
 var base_color: Color = Color.WHITE
+var model_info: Dictionary = {}
 var _meshes: Array[MeshInstance3D] = []
 var _original_materials: Dictionary = {}
 var _highlighted: bool = false
@@ -16,14 +17,14 @@ var _kick_lock: bool = false
 var _height: float = 0.3
 
 
-func setup(dept: int, color: Color) -> void:
+func setup(dept: int, color: Color, hero_override: Dictionary = {}) -> void:
 	department = dept
 	base_color = color
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var s := rng.randf_range(1.02, 1.28)
 	var box := Vector3(0.34, 0.4, 0.34)
-	var hero := _catalog_hero(dept, rng)
+	var hero: Dictionary = hero_override if not hero_override.is_empty() else _catalog_hero(dept, rng)
 	if not hero.is_empty():
 		var packed := ModelCatalog.scene(String(hero["path"]))
 		if packed != null:
@@ -32,6 +33,7 @@ func setup(dept: int, color: Color) -> void:
 			var d := float(hero.get("d", 0.34))
 			box = Vector3(clampf(w, 0.12, 0.6), maxf(h, 0.08), clampf(d, 0.12, 0.6))
 			_build_hero(packed.instantiate(), float(hero["scale"]))
+			model_info = hero.duplicate()
 	if _meshes.is_empty():
 		_meshes = ProductShapes.build(self, dept, color, rng, s)
 	for mi in _meshes:
