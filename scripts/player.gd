@@ -351,8 +351,8 @@ func _build_viewmodel() -> void:
 	_carry_holder = Node3D.new()
 	_carry_holder.name = "CarryProduct"
 	_open_pivot.add_child(_carry_holder)
-	_carry_holder.position = HAND_OPEN_TARGET + Vector3(-0.005, 0.018, -0.005)
-	_carry_holder.rotation = Vector3(deg_to_rad(-16.0), deg_to_rad(24.0), deg_to_rad(-8.0))
+	_carry_holder.position = HAND_OPEN_TARGET + Vector3(-0.005, 0.002, -0.005)
+	_carry_holder.rotation = Vector3(deg_to_rad(8.0), deg_to_rad(6.0), deg_to_rad(-4.0))
 	_carry_holder.visible = false
 
 	# Handheld barcode scanner. It only comes up while a belt item is under the
@@ -1077,7 +1077,8 @@ func _place_open_arm() -> void:
 
 func _refresh_carry() -> void:
 	# The hand is only worth having if the thing being carried is in it, so the top
-	# of the stack gets a real product mesh parked on the palm.
+	# of the stack gets the same sculpted catalog model that sits on the shelf,
+	# fitted to the palm and stood on its base instead of a generic box.
 	if _carry_holder == null:
 		return
 	for c in _carry_holder.get_children():
@@ -1087,15 +1088,47 @@ func _refresh_carry() -> void:
 		return
 	var dept: int = stack.back()
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 8123 + dept * 977
-	var holder := Node3D.new()
-	_carry_holder.add_child(holder)
-	ProductShapes.build(holder, dept, GameState.DEPARTMENT_COLORS[dept], rng, 0.82)
-	holder.scale = Vector3.ONE * 0.62
-	for mi in holder.find_children("*", "MeshInstance3D", true, false):
-		(mi as MeshInstance3D).layers = 2
+	rng.seed = 8123 + dept * 977 + stack.size() * 131
+	if not _build_carry_model(dept, rng):
+		var holder := Node3D.new()
+		_carry_holder.add_child(holder)
+		ProductShapes.build(holder, dept, GameState.DEPARTMENT_COLORS[dept], rng, 0.82)
+		holder.scale = Vector3.ONE * 0.62
+		for mi in holder.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).layers = 2
 	_carry_holder.visible = true
 	_carry_pop = 1.0
+
+
+func _build_carry_model(dept: int, rng: RandomNumberGenerator) -> bool:
+	var hero := ModelCatalog.pick(dept)
+	if hero.is_empty():
+		return false
+	var packed := ModelCatalog.scene(String(hero["path"]))
+	if packed == null:
+		return false
+	var inst := packed.instantiate() as Node3D
+	if inst == null:
+		return false
+	# Held packs should read like a real item in the palm: tall enough to see at a
+	# glance, small enough that it never swallows the hand or the screen.
+	var h := maxf(float(hero.get("height", 0.3)), 0.01)
+	var foot := maxf(float(hero.get("w", 0.3)), float(hero.get("d", 0.3)))
+	var fit := minf(0.19 / h, 0.17 / maxf(foot, 0.01))
+	inst.scale = Vector3.ONE * (float(hero.get("scale", 1.0)) * fit)
+	# The scan origin is the centre of the pack's base: sit it on the palm and let
+	# the label face the camera, with just a touch of wrist twist.
+	inst.position = Vector3(0.0, 0.004, 0.0)
+	inst.rotation.y = rng.randf_range(-0.16, 0.16)
+	_carry_holder.add_child(inst)
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null:
+			continue
+		mi.layers = 2
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ProductShapes.shop_material(mi)
+	return true
 
 
 func _unhandled_input(event: InputEvent) -> void:

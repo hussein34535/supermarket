@@ -125,6 +125,16 @@ func _capture_and_quit() -> void:
 				if player != null and is_instance_valid(player):
 					player.global_position = Vector3(-1.5, 0.1, 8.2)
 					player.rotation.y = PI
+			"carry":
+				# QA: look at the pack riding in the open palm.
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(0.0, 0.1, -4.0)
+					player.rotation.y = 0.0
+					player.add_to_stack(2)
+					player.add_to_stack(0)
+					player.add_to_stack(3)
+					player.add_to_stack(1)
+					player._ray_trash = false
 			"delivery":
 				if player != null and is_instance_valid(player):
 					player.global_position = Vector3(-13.6, 0.1, 10.2)
