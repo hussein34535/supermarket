@@ -303,23 +303,23 @@ func _build_viewmodel() -> void:
 	_hand_bar = grip_bar
 	_hand_right = grip_right
 
-	var skin_mat: StandardMaterial3D = _make_arms_material()
-	var arms_scene: PackedScene = load("res://assets/models/arms_rigged.glb")
+	var sleeve_mat: StandardMaterial3D = _make_sleeve_material()
+	var hand_l_scene: PackedScene = load("res://assets/models/hand_mh_l.glb")
+	var hand_r_scene: PackedScene = load("res://assets/models/hand_mh_r.glb")
 
 	# LEFT ARM (Holding grabber pistol grip)
 	_hand_l = Node3D.new()
 	_hand_l.name = "HandL"
 	_grabber_pivot.add_child(_hand_l)
 
-	if arms_scene != null:
-		_arms_l = arms_scene.instantiate()
+	if hand_l_scene != null:
+		_arms_l = hand_l_scene.instantiate()
 		_hand_l.add_child(_arms_l)
 		var mi_l := _find_node_of_class(_arms_l, "MeshInstance3D") as MeshInstance3D
 		_arms_l_skel = _find_node_of_class(_arms_l, "Skeleton3D") as Skeleton3D
 		if mi_l != null and _arms_l_skel != null:
-			mi_l.mesh = load("res://assets/models/arm_left_mesh.res")
-			mi_l.material_override = skin_mat
-			mi_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_prepare_hand_mesh(mi_l)
+			_add_sleeve(_arms_l_skel, "l", sleeve_mat)
 			_arms_l_bone = _arms_l_skel.find_bone("hand_l")
 			var rho := _grip_rho()
 			_curl_fingers(_arms_l_skel, "l", rho)
@@ -335,15 +335,14 @@ func _build_viewmodel() -> void:
 	_hand_open.name = "HandOpen"
 	_open_pivot.add_child(_hand_open)
 
-	if arms_scene != null:
-		_arms_open = arms_scene.instantiate()
+	if hand_l_scene != null:
+		_arms_open = hand_l_scene.instantiate()
 		_hand_open.add_child(_arms_open)
 		var mi_o := _find_node_of_class(_arms_open, "MeshInstance3D") as MeshInstance3D
 		_arms_open_skel = _find_node_of_class(_arms_open, "Skeleton3D") as Skeleton3D
 		if mi_o != null and _arms_open_skel != null:
-			mi_o.mesh = load("res://assets/models/arm_left_mesh.res")
-			mi_o.material_override = skin_mat
-			mi_o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_prepare_hand_mesh(mi_o)
+			_add_sleeve(_arms_open_skel, "l", sleeve_mat)
 			_arms_open_bone = _arms_open_skel.find_bone("hand_l")
 			_open_fingers(_arms_open_skel, "l")
 			_arms_open_skel.force_update_all_bone_transforms()
@@ -400,15 +399,14 @@ func _build_viewmodel() -> void:
 	_arm_r.name = "HandR"
 	_bag_pivot.add_child(_arm_r)
 
-	if arms_scene != null:
-		_arms_r = arms_scene.instantiate()
+	if hand_r_scene != null:
+		_arms_r = hand_r_scene.instantiate()
 		_arm_r.add_child(_arms_r)
 		var mi_r := _find_node_of_class(_arms_r, "MeshInstance3D") as MeshInstance3D
 		_arms_r_skel = _find_node_of_class(_arms_r, "Skeleton3D") as Skeleton3D
 		if mi_r != null and _arms_r_skel != null:
-			mi_r.mesh = load("res://assets/models/arm_right_mesh.res")
-			mi_r.material_override = skin_mat
-			mi_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_prepare_hand_mesh(mi_r)
+			_add_sleeve(_arms_r_skel, "r", sleeve_mat)
 			_arms_r_bone = _arms_r_skel.find_bone("hand_r")
 			_curl_fingers(_arms_r_skel, "r", 0.030)
 			var bag_bar := (Vector3.UP - Vector3.RIGHT * Vector3.RIGHT.dot(Vector3.UP)).normalized()
@@ -626,28 +624,61 @@ func _capsule_between(parent: Node3D, a: Vector3, b: Vector3, radius: float, mat
 	return mi
 
 
-func _make_arms_material() -> StandardMaterial3D:
-	var skin_mat := StandardMaterial3D.new()
-	skin_mat.albedo_texture = load("res://assets/models/arms_rigged_texture_pbr_20250901.webp")
-	skin_mat.normal_enabled = true
-	skin_mat.normal_texture = load("res://assets/models/arms_rigged_texture_pbr_20250901_normal.webp")
-	skin_mat.normal_scale = 0.85
-	var orm: Texture2D = load("res://assets/models/arms_rigged_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.webp")
-	if orm != null:
-		skin_mat.roughness_texture = orm
-		skin_mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
-		skin_mat.metallic_texture = orm
-		skin_mat.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_BLUE
-		skin_mat.metallic = 0.05
-		skin_mat.roughness = 0.90
-	else:
-		skin_mat.metallic = 0.0
-		skin_mat.roughness = 0.75
-	skin_mat.metallic_specular = 0.40
-	# The ceiling lights are bright enough to wash the pale skin texture out. Pulling
-	# the albedo down keeps the hand readable instead of a white silhouette.
-	skin_mat.albedo_color = Color(0.88, 0.83, 0.80)
-	return skin_mat
+func _prepare_hand_mesh(mi: MeshInstance3D) -> void:
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# The glb already carries its skin material. Tint a per-instance copy instead of
+	# overriding it, so the ceiling lights do not bleach the texture white while the
+	# three hands keep their own settings.
+	var src := mi.mesh.surface_get_material(0) as StandardMaterial3D
+	if src != null:
+		var mat := src.duplicate() as StandardMaterial3D
+		mat.albedo_color = Color(0.63, 0.53, 0.47)
+		mat.roughness = 0.86
+		mi.material_override = mat
+
+
+func _make_sleeve_material() -> StandardMaterial3D:
+	# Reuse the woven fabric the old sleeves used, tinted to the shop's dark green
+	# so the raw wrist cut of the hand model reads as a uniform cuff.
+	var mat := _make_fabric_material()
+	mat.albedo_color = Color(0.075, 0.26, 0.16)
+	mat.roughness = 0.94
+	return mat
+
+
+func _add_sleeve(skel: Skeleton3D, side: String, mat: StandardMaterial3D) -> void:
+	# A hand-only asset leaves the wrist as an open cap. A short tapered cuff hides
+	# it and gives the forearm a believable place to leave the frame. It is parented
+	# to the skeleton in rest space, so the placement transform that carries the
+	# skinned hand carries the cuff with it.
+	var hb := skel.find_bone("hand_" + side)
+	var ib := skel.find_bone("index_01_" + side)
+	var pb := skel.find_bone("pinky_01_" + side)
+	if hb < 0 or ib < 0 or pb < 0:
+		return
+	var wrist := _bone_rest_in_skel(skel, hb).origin
+	var knuckles := (_bone_rest_in_skel(skel, ib).origin + _bone_rest_in_skel(skel, pb).origin) * 0.5
+	var fore := (wrist - knuckles).normalized()
+	var palm := _palm_normal(skel, side)
+	var y := -fore
+	var x := y.cross(palm).normalized()
+	var z := x.cross(y)
+	var frame := Basis(x, y, z)
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.031
+	mesh.bottom_radius = 0.043
+	mesh.height = 0.11
+	mesh.radial_segments = 20
+	mesh.rings = 2
+	var mi := MeshInstance3D.new()
+	mi.name = "Sleeve"
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.transform = Transform3D(frame, wrist + fore * 0.038)
+	# Flatten the cuff across the palm so it follows the oval of the wrist.
+	mi.scale = Vector3(1.0, 1.0, 0.72)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	skel.add_child(mi)
 
 
 func _bone_rest_in_skel(skel: Skeleton3D, bone: int) -> Transform3D:
@@ -669,6 +700,33 @@ func _find_node_of_class(n: Node, cn: String) -> Node:
 	return null
 
 
+func _hand_fore(skel: Skeleton3D, side: String, posed: bool) -> Vector3:
+	# The viewmodel is hand-only, so no forearm bone ships with it. The anchors still
+	# need a wrist->elbow axis to lock the roll of the hand around a handle; the wrist
+	# sits behind the knuckle midline, so that offset is the direction the (invisible)
+	# forearm leaves in. Posed mode follows the current skeleton, rest mode the bind.
+	var hb := skel.find_bone("hand_" + side)
+	var ib := skel.find_bone("index_01_" + side)
+	var pb := skel.find_bone("pinky_01_" + side)
+	if hb < 0 or ib < 0 or pb < 0:
+		return Vector3.DOWN
+	var w: Vector3
+	var ki: Vector3
+	var kp: Vector3
+	if posed:
+		w = skel.get_bone_global_pose(hb).origin
+		ki = skel.get_bone_global_pose(ib).origin
+		kp = skel.get_bone_global_pose(pb).origin
+	else:
+		w = _bone_rest_in_skel(skel, hb).origin
+		ki = _bone_rest_in_skel(skel, ib).origin
+		kp = _bone_rest_in_skel(skel, pb).origin
+	var fore := w - (ki + kp) * 0.5
+	if fore.length() < 0.0001:
+		return Vector3.DOWN
+	return fore.normalized()
+
+
 func _arm_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, fore_dir: Vector3, target: Vector3, roll: float) -> Transform3D:
 	# Match two anatomical axes to two target axes:
 	#   knuckle line  -> axis of the handle the fingers close around
@@ -678,19 +736,23 @@ func _arm_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, fo
 	var hb := skel.find_bone("hand_" + side)
 	var ib := skel.find_bone("index_01_" + side)
 	var pb := skel.find_bone("pinky_01_" + side)
-	var eb := skel.find_bone("lowerarm_" + side)
-	if hb < 0 or ib < 0 or pb < 0 or eb < 0:
+	if hb < 0 or ib < 0 or pb < 0:
 		return Transform3D.IDENTITY
 	var w := skel.get_bone_global_pose(hb).origin
 	var ki := skel.get_bone_global_pose(ib).origin
 	var kp := skel.get_bone_global_pose(pb).origin
-	var el := skel.get_bone_global_pose(eb).origin
+	var el := w + _hand_fore(skel, side, true) * 0.2
 	var gc := _tunnel_center(skel, side)
 	var u1 := (ki - kp).normalized()
 	var u2 := ((el - w) - u1 * u1.dot(el - w)).normalized()
 	var u3 := u1.cross(u2)
+	# A mirrored hand (the left one is baked from the right asset) has its palm on
+	# the opposite side of the index->pinky/forearm frame. Flipping the handle axis
+	# rolls it 180 degrees about the forearm, which swaps the knuckle line and turns
+	# the palm back toward the camera instead of showing the back of the hand.
+	var flip := -1.0 if _palm_normal(skel, side).dot(u3) < 0.0 else 1.0
 	var src := Basis(u1, u2, u3)
-	var e1 := bar_axis.normalized()
+	var e1 := bar_axis.normalized() * flip
 	var e2 := (fore_dir - e1 * e1.dot(fore_dir)).normalized()
 	var e3 := e1.cross(e2)
 	var dst := Basis(e1, e2, e3)
@@ -702,11 +764,10 @@ func _arm_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, fo
 
 
 func _set_bone_turn(skel: Skeleton3D, b: int, axis_local: Vector3, ang: float) -> void:
-	# Bone poses in this rig are the full local transform, so a delta has to be
-	# composed onto the rest rotation. Writing the delta straight in would throw the
-	# rest orientation away and the bone would swing from the wrong place.
-	var rest_q := skel.get_bone_rest(b).basis.get_rotation_quaternion()
-	skel.set_bone_pose_rotation(b, rest_q * Quaternion(axis_local.normalized(), ang))
+	# Godot composes the bone pose on top of the rest transform, so the turn is set
+	# directly. The axis is already expressed in the bone's rest frame, which is what
+	# makes this a rotation about the skeleton-space axis the caller asked for.
+	skel.set_bone_pose_rotation(b, Quaternion(axis_local.normalized(), ang))
 
 
 func _grip_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, fore_dir: Vector3, roll: float, target: Vector3, rho: float) -> Transform3D:
@@ -717,24 +778,28 @@ func _grip_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, f
 	var hb := skel.find_bone("hand_" + side)
 	var ib := skel.find_bone("index_01_" + side)
 	var pb := skel.find_bone("pinky_01_" + side)
-	var eb := skel.find_bone("lowerarm_" + side)
-	if hb < 0 or ib < 0 or pb < 0 or eb < 0:
+	if hb < 0 or ib < 0 or pb < 0:
 		return Transform3D.IDENTITY
 	var hrest := _bone_rest_in_skel(skel, hb)
 	var w := hrest.origin
 	var hinge := (_bone_rest_in_skel(skel, ib).origin - _bone_rest_in_skel(skel, pb).origin).normalized()
-	var fore := (_bone_rest_in_skel(skel, eb).origin - w).normalized()
+	var fore := _hand_fore(skel, side, false)
 	var fr := (fore - hinge * hinge.dot(fore)).normalized()
-	var e1 := bar_axis.normalized()
+	# A mirrored hand (the left one is baked from the right asset) has its palm on
+	# the opposite side of the index->pinky/forearm frame. The handle axis has to
+	# follow the palm so the fingers close on the near face instead of the back.
+	var flip := 1.0 if _palm_normal(skel, side).dot(hinge.cross(fr)) < 0.0 else -1.0
+	var e1 := bar_axis.normalized() * flip
 	var f := (fore_dir - e1 * e1.dot(fore_dir)).normalized()
 	var src := Basis(hinge, fr, hinge.cross(fr))
 	var dst := Basis(e1, f, e1.cross(f))
 	var r := Basis(e1, roll) * dst * src.transposed()
 	var rs := Basis(r.x * s, r.y * s, r.z * s)
-	# The hand centre has to land on the handle's axis, not on the baked grip point,
-	# so nudge the target out along the palm by the measured offset.
+	# The curled fist is what the handle has to pass through, so aim its actual
+	# tunnel at the grip point. The rest palm centre sits further out along the palm,
+	# and anchoring on it leaves the handle resting on the fingertips.
 	var aim := target + rs * _palm_normal(skel, side) * _grip_shift(side)
-	return Transform3D(rs * hrest.basis, aim + rs * (w - _grip_center(skel, side, rho)))
+	return Transform3D(rs * hrest.basis, aim + rs * (w - _tunnel_center(skel, side)))
 
 
 func _palm_normal(skel: Skeleton3D, side: String) -> Vector3:
@@ -801,18 +866,16 @@ func _oval_step(a: float, b: float, th: float, chord: float, sgn: float) -> floa
 
 
 func _open_fingers(skel: Skeleton3D, side: String) -> void:
-	# The rig ships in a fist, and its bind pose is a fist too, so measuring rest
-	# directions finds nothing to fix. The curl axis is the bone's own local X, so
-	# each phalanx is turned back about that axis: a lot at the knuckle, less at the
-	# tip, which unfolds the hand without hyper-extending the fingertips.
-	var angles := [-6.0, -4.0, -2.0]
+	# The hand asset ships with the fingers nearly straight, so opening is only a
+	# light relaxation: a couple of degrees positive at each joint keeps the palm
+	# cupped instead of a stiff flat board.
+	var angles := [6.0, 4.0, 2.0]
 	for f in ["index", "middle", "ring", "pinky"]:
 		for j in 3:
 			var bj := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
 			if bj < 0:
 				continue
-			var rq := skel.get_bone_rest(bj).basis.get_rotation_quaternion()
-			skel.set_bone_pose_rotation(bj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(angles[j])))
+			skel.set_bone_pose_rotation(bj, Quaternion(Vector3.RIGHT, deg_to_rad(angles[j])))
 	# The thumb rests across the palm. Rolling it the same way lifts the pad off the
 	# fingers so the hand reads as open instead of half-closed around nothing.
 	var thumb := [-10.0, -6.0, -3.0]
@@ -820,8 +883,7 @@ func _open_fingers(skel: Skeleton3D, side: String) -> void:
 		var tj := skel.find_bone("thumb_0%d_%s" % [j + 1, side])
 		if tj < 0:
 			continue
-		var rq := skel.get_bone_rest(tj).basis.get_rotation_quaternion()
-		skel.set_bone_pose_rotation(tj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(thumb[j])))
+		skel.set_bone_pose_rotation(tj, Quaternion(Vector3.RIGHT, deg_to_rad(thumb[j])))
 	skel.force_update_all_bone_transforms()
 
 
@@ -829,22 +891,20 @@ func _carry_fingers(skel: Skeleton3D, side: String) -> void:
 	# A half-closed cradle: the knuckles still leave the palm open enough for a
 	# pack to sit in it, while the middle and tip joints curl up around the front
 	# so the product is visibly held instead of balanced on a flat hand.
-	var angles := [28.0, 21.0, 13.0]
+	var angles := [44.0, 34.0, 22.0]
 	for f in ["index", "middle", "ring", "pinky"]:
 		for j in 3:
 			var bj := skel.find_bone("%s_0%d_%s" % [f, j + 1, side])
 			if bj < 0:
 				continue
-			var rq := skel.get_bone_rest(bj).basis.get_rotation_quaternion()
-			skel.set_bone_pose_rotation(bj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(angles[j])))
+			skel.set_bone_pose_rotation(bj, Quaternion(Vector3.RIGHT, deg_to_rad(angles[j])))
 	# The thumb comes over the front face of the pack rather than standing up.
-	var thumb := [16.0, 11.0, 7.0]
+	var thumb := [38.0, 26.0, 16.0]
 	for j in 3:
 		var tj := skel.find_bone("thumb_0%d_%s" % [j + 1, side])
 		if tj < 0:
 			continue
-		var rq := skel.get_bone_rest(tj).basis.get_rotation_quaternion()
-		skel.set_bone_pose_rotation(tj, rq * Quaternion(Vector3.RIGHT, deg_to_rad(thumb[j])))
+		skel.set_bone_pose_rotation(tj, Quaternion(Vector3.RIGHT, deg_to_rad(thumb[j])))
 	skel.force_update_all_bone_transforms()
 
 
@@ -992,18 +1052,19 @@ func _tunnel_center(skel: Skeleton3D, side: String) -> Vector3:
 
 
 func _aim_bone(skel: Skeleton3D, b: int, dir: Vector3) -> void:
-	# Point a bone's own axis (the offset to its first child, not necessarily +Y in
-	# this rig) along a skeleton-space direction. Poses here are absolute local
-	# transforms, so the child offset follows the pose basis directly.
+	# Point a bone's child offset (not necessarily +Y in this rig) along a
+	# skeleton-space direction. The pose is applied on top of the rest, so the target
+	# has to be brought through the parent's pose and the bone's own rest first.
 	var local := Vector3.UP
 	var kids := skel.get_bone_children(b)
 	if kids.size() > 0:
 		local = skel.get_bone_rest(kids[0]).origin.normalized()
-	var frame := Basis.IDENTITY
+	var frame := skel.get_bone_rest(b).basis
 	var p := skel.get_bone_parent(b)
 	if p >= 0:
-		frame = skel.get_bone_global_pose(p).basis
-	skel.set_bone_pose_rotation(b, Quaternion(local, (frame.inverse() * dir).normalized()))
+		frame = skel.get_bone_global_pose(p).basis * frame
+	var target := (frame.inverse() * dir).normalized()
+	skel.set_bone_pose_rotation(b, Quaternion(local, target))
 
 
 func _bend_bone(skel: Skeleton3D, b: int, axis: Vector3, ang: float) -> void:
@@ -1123,18 +1184,26 @@ func _refresh_carry() -> void:
 	# balancing on a flat open palm.
 	if _arms_open_skel != null:
 		_carry_fingers(_arms_open_skel, "l")
-	# The palm faces the player, so the pack has to sit in front of it with its
-	# back against the skin; the old target point is inside the wrist and made
+	# The palm faces the player, so the pack has to sit in front of it with its back
+	# against the skin; the old target point is inside the wrist and made
 	# every product float above the hand.
-	var palm := _palm_point_pivot()
+	var palm := _palm_frame()
 	if hero.is_empty():
 		hero = ModelCatalog.pick(dept)
 	var fit := _carry_fit(hero) if not hero.is_empty() else 1.0
 	var half_d := maxf(float(hero.get("d", 0.12)) * fit, 0.02) * 0.5
-	var half_w := maxf(float(hero.get("w", 0.12)) * fit, 0.02) * 0.5
-	# One-handed grip: the hand takes the right edge of the pack, so wide bags do
-	# not float centred in front of the palm with the fingers hidden behind them.
-	_carry_holder.position = palm + Vector3(-half_w + 0.02, -0.022, half_d + 0.006)
+	# One-handed grip: the pack stands on the palm with its back against the skin.
+	# Line its upright axis up with the knuckles and drop the base to the heel of
+	# the palm, then push it toward the camera along the view ray. Offsetting along
+	# the palm normal instead slides the pack sideways across the screen and leaves
+	# the fingers closing on empty air beside it.
+	var cam_pos := _open_pivot.global_transform.affine_inverse() * camera.global_position
+	var knuckles := palm.origin + palm.basis.y * 0.055
+	var base_pt := knuckles + Vector3.DOWN * 0.07 + Vector3.RIGHT * 0.02
+	var ray := (base_pt - cam_pos).normalized()
+	_carry_holder.transform = Transform3D(
+		Basis(Vector3.RIGHT, deg_to_rad(12.0)) * Basis(Vector3.UP, deg_to_rad(-10.0)),
+		base_pt - ray * (half_d - 0.002))
 	if not _build_carry_model(dept, rng, hero):
 		var holder := Node3D.new()
 		_carry_holder.add_child(holder)
@@ -1147,26 +1216,41 @@ func _refresh_carry() -> void:
 
 
 func _carry_fit(hero: Dictionary) -> float:
+	# The palm is roughly 11 cm long and 7 cm wide. A pack any larger than this
+	# swallows the whole hand and hides the fingers that are supposed to hold it.
+	# The depth cap matters most: a thick pack pushes its front face past the
+	# fingertips, so the hand disappears behind the product.
 	var h := maxf(float(hero.get("height", 0.3)), 0.01)
 	var foot := maxf(float(hero.get("w", 0.3)), float(hero.get("d", 0.3)))
-	return minf(0.24 / h, 0.21 / maxf(foot, 0.01))
+	var deep := maxf(float(hero.get("d", 0.3)), 0.01)
+	return minf(minf(0.155 / h, 0.115 / maxf(foot, 0.01)), 0.07 / deep)
 
 
-func _palm_point_pivot() -> Vector3:
-	# Centre of the palm skin in the open-hand pivot's space. The rig is held with
-	# the palm facing the player, so this is where the back of a carried pack
-	# touches the hand.
+func _palm_frame() -> Transform3D:
+	# Palm surface and its frame in the open-hand pivot's space: X along the knuckle
+	# line, Y along the fingers, Z out of the palm. A carried pack has to sit on that
+	# surface along its normal, not straight along the view axis - the hand is rolled,
+	# so a plain +Z nudge slides the product off the side of the hand.
 	if _arms_open_skel == null or _open_pivot == null:
-		return HAND_OPEN_TARGET
+		return Transform3D(Basis.IDENTITY, HAND_OPEN_TARGET)
 	var hb := _arms_open_skel.find_bone("hand_l")
 	var ib := _arms_open_skel.find_bone("index_01_l")
 	var pb := _arms_open_skel.find_bone("pinky_01_l")
 	if hb < 0 or ib < 0 or pb < 0:
-		return HAND_OPEN_TARGET
+		return Transform3D(Basis.IDENTITY, HAND_OPEN_TARGET)
+	var wrist := _arms_open_skel.get_bone_global_pose(hb).origin
 	var knuckles := (_arms_open_skel.get_bone_global_pose(ib).origin + _arms_open_skel.get_bone_global_pose(pb).origin) * 0.5
-	var palm_s := (_arms_open_skel.get_bone_global_pose(hb).origin + knuckles) * 0.5 + _palm_normal(_arms_open_skel, "l") * PALM_OFFSET
+	var n := _palm_normal(_arms_open_skel, "l")
+	var palm_s := (wrist + knuckles) * 0.5 + n * PALM_OFFSET
+	var y := (knuckles - wrist).normalized()
+	var z := (n - y * y.dot(n)).normalized()
+	var x := y.cross(z).normalized()
 	var to_pivot := _open_pivot.global_transform.affine_inverse() * _arms_open_skel.global_transform
-	return to_pivot * palm_s
+	return Transform3D(to_pivot.basis * Basis(x, y, z), to_pivot * palm_s)
+
+
+func _palm_point_pivot() -> Vector3:
+	return _palm_frame().origin
 
 
 func _build_carry_model(dept: int, rng: RandomNumberGenerator, hero: Dictionary) -> bool:

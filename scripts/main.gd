@@ -162,6 +162,15 @@ func _capture_and_quit() -> void:
 							hero = e
 					player.add_to_stack(2, hero)
 					player._ray_trash = false
+			"grabber":
+				# QA: bare grabber + bag, without needing a trash pile under the crosshair.
+				if player != null and is_instance_valid(player):
+					player.global_position = Vector3(5.0, 0.1, -7.0)
+					player.rotation.y = 0.0
+					player.set_physics_process(false)
+					player._ray_trash = true
+					player._grabber_mode = 1.0
+					player._update_viewmodel(0.016, Vector3.ZERO)
 			"delivery":
 				if player != null and is_instance_valid(player):
 					player.global_position = Vector3(-13.6, 0.1, 10.2)
