@@ -324,6 +324,7 @@ func _build_viewmodel() -> void:
 				_prepare_hand_mesh(mi_l)
 		_arms_l_skel = _find_node_of_class(_arms_l, "Skeleton3D") as Skeleton3D
 		_arms_l_anim = _arms_l.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		_hold_pose(_arms_l_anim)
 		if _arms_l_anim != null and _arms_l_anim.has_animation("grip_grabber"):
 			_arms_l_anim.play("grip_grabber")
 			_arms_l_anim.seek(0.0, true)
@@ -349,6 +350,7 @@ func _build_viewmodel() -> void:
 				_prepare_hand_mesh(mi_o)
 		_arms_open_skel = _find_node_of_class(_arms_open, "Skeleton3D") as Skeleton3D
 		_arms_open_anim = _arms_open.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		_hold_pose(_arms_open_anim)
 		if _arms_open_anim != null and _arms_open_anim.has_animation("idle_open"):
 			_arms_open_anim.play("idle_open")
 			_arms_open_anim.seek(0.0, true)
@@ -417,6 +419,7 @@ func _build_viewmodel() -> void:
 				_prepare_hand_mesh(mi_r)
 		_arms_r_skel = _find_node_of_class(_arms_r, "Skeleton3D") as Skeleton3D
 		_arms_r_anim = _arms_r.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		_hold_pose(_arms_r_anim)
 		if _arms_r_anim != null and _arms_r_anim.has_animation("hold_bag"):
 			_arms_r_anim.play("hold_bag")
 			_arms_r_anim.seek(0.0, true)
@@ -638,6 +641,17 @@ func _make_arm_side(scene: PackedScene, show_side: String) -> Node3D:
 		elif mi.name == "Arm_R":
 			mi.visible = (show_side == "r")
 	return arm
+
+func _hold_pose(anim: AnimationPlayer) -> void:
+	# Every clip here is a single keyframe. Played once, the player reaches the end
+	# a frame later and Godot drops the skeleton back to its rest pose, so a grip
+	# would flicker on and vanish. Looping the one-frame clip keeps the pose up.
+	if anim == null:
+		return
+	for name in anim.get_animation_list():
+		var clip := anim.get_animation(name)
+		if clip != null:
+			clip.loop_mode = Animation.LOOP_LINEAR
 
 func _prepare_hand_mesh(mi: MeshInstance3D) -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -879,13 +893,15 @@ func _refresh_carry() -> void:
 		var anim_name := "carry_box" if half_d > 0.022 else "carry_palm"
 		if _arms_open_anim.has_animation(anim_name):
 			_arms_open_anim.play(anim_name, 0.15)
+			_arms_open_anim.seek(0.0, true)
 
 	var palm := _palm_frame()
-	# Sit the base on the heel of the palm and push it out only by its own half
-	# depth. The old offset parked the pack over the wrist, so its corner sank into
-	# the thenar skin while the fingers closed on air in front of it.
-	var carry_pos := palm.origin + palm.basis.y * (0.030 - half_h * 0.30) + palm.basis.z * (half_d + 0.006)
-	var carry_basis := palm.basis * Basis(Vector3.RIGHT, deg_to_rad(-10.0)) * Basis(Vector3.UP, deg_to_rad(10.0))
+	# A pack that runs along the fingers cannot be gripped: a finger only folds in
+	# the plane across the palm, so the pack has to cross the hand instead of lying
+	# down it. Laying it over the knuckle line lets the fingers close on its near
+	# face and the thumb meet them from the other side.
+	var carry_basis := palm.basis * Basis(Vector3.BACK, deg_to_rad(-90.0))
+	var carry_pos := palm.origin + palm.basis.y * 0.030 + palm.basis.z * (half_d + 0.006) - carry_basis.y * half_h
 	_carry_holder.transform = Transform3D(carry_basis, carry_pos)
 
 	if not _build_carry_model(dept, rng, hero):

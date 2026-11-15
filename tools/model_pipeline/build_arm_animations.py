@@ -161,17 +161,27 @@ def pose_idle_open(arm_obj):
 
 
 def pose_carry_palm(arm_obj):
-    curl_finger(arm_obj, "l", "index", [18.0, 26.0, 18.0])
-    curl_finger(arm_obj, "l", "middle", [20.0, 28.0, 20.0])
-    curl_finger(arm_obj, "l", "ring", [20.0, 28.0, 20.0])
-    curl_finger(arm_obj, "l", "pinky", [18.0, 24.0, 16.0])
-    pose_thumb(arm_obj, "l", 18.0, [14.0, 18.0, 12.0])
+    # The carried pack sits in front of the palm, so the fingers stay close to
+    # their rest line and the thumb does the holding: it sweeps over the front
+    # face instead of hiding behind the pack, which is what made the hand read
+    # as a tray rather than a grip.
+    curl_finger(arm_obj, "l", "index", [30.0, 40.0, 26.0])
+    curl_finger(arm_obj, "l", "middle", [34.0, 44.0, 28.0])
+    curl_finger(arm_obj, "l", "ring", [34.0, 44.0, 28.0])
+    curl_finger(arm_obj, "l", "pinky", [30.0, 38.0, 24.0])
+    pose_thumb(arm_obj, "l", 6.0, [58.0, 62.0, 42.0])
 
 
 def pose_carry_box(arm_obj):
-    for f in FINGERS:
-        curl_finger(arm_obj, "l", f, [12.0, 18.0, 12.0])
-    pose_thumb(arm_obj, "l", 22.0, [10.0, 14.0, 10.0])
+    # Thick packs (cans, boxes) ride one half-depth off the palm, so the fingers
+    # have to close all the way over their front face and the thumb has to land
+    # beside them. Without this the pack sits in front of a flat hand and reads
+    # as glued on instead of gripped.
+    curl_finger(arm_obj, "l", "index", [70.0, 80.0, 46.0])
+    curl_finger(arm_obj, "l", "middle", [74.0, 84.0, 48.0])
+    curl_finger(arm_obj, "l", "ring", [74.0, 84.0, 48.0])
+    curl_finger(arm_obj, "l", "pinky", [66.0, 76.0, 42.0])
+    pose_thumb(arm_obj, "l", 8.0, [62.0, 66.0, 44.0])
 
 
 def pose_grip_grabber(arm_obj):
