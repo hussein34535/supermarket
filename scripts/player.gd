@@ -91,14 +91,17 @@ var _body_crouch: float = 0.0
 var _arm_r: Node3D
 var _arms_l: Node3D
 var _arms_l_skel: Skeleton3D
+var _arms_l_anim: AnimationPlayer = null
 var _arms_l_bone: int = -1
 var _arms_l_anchor := Transform3D.IDENTITY
 var _arms_open: Node3D
 var _arms_open_skel: Skeleton3D
+var _arms_open_anim: AnimationPlayer = null
 var _arms_open_bone: int = -1
 var _arms_open_anchor := Transform3D.IDENTITY
 var _arms_r: Node3D
 var _arms_r_skel: Skeleton3D
+var _arms_r_anim: AnimationPlayer = null
 var _arms_r_bone: int = -1
 var _arms_r_anchor := Transform3D.IDENTITY
 var _hand_base := Basis.IDENTITY
@@ -307,31 +310,31 @@ func _build_viewmodel() -> void:
 	_hand_bar = grip_bar
 	_hand_right = grip_right
 
-	var arm_scene: PackedScene = load("res://assets/models/_fps_arms.fbx")
-	var arm_l_mesh: Mesh = load("res://assets/models/arm_para_l.res")
-	var arm_r_mesh: Mesh = load("res://assets/models/arm_para_r.res")
+	var arm_scene: PackedScene = load("res://assets/models/fps_arms_animated.glb")
 
 	# LEFT ARM (Holding grabber pistol grip)
 	_hand_l = Node3D.new()
 	_hand_l.name = "HandL"
 	_grabber_pivot.add_child(_hand_l)
 
-	if arm_scene != null and arm_l_mesh != null:
-		_arms_l = _make_arm(arm_scene, arm_l_mesh)
+	if arm_scene != null:
+		_arms_l = _make_arm_side(arm_scene, "l")
 		_hand_l.add_child(_arms_l)
-		var mi_l := _find_node_of_class(_arms_l, "MeshInstance3D") as MeshInstance3D
+		for node in _arms_l.find_children("*", "MeshInstance3D", true, false):
+			var mi_l := node as MeshInstance3D
+			if mi_l.visible:
+				_prepare_hand_mesh(mi_l)
 		_arms_l_skel = _find_node_of_class(_arms_l, "Skeleton3D") as Skeleton3D
-		if mi_l != null and _arms_l_skel != null:
-			_prepare_hand_mesh(mi_l)
+		_arms_l_anim = _arms_l.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if _arms_l_anim != null and _arms_l_anim.has_animation("grip_grabber"):
+			_arms_l_anim.play("grip_grabber")
+			_arms_l_anim.seek(0.0, true)
+		if _arms_l_skel != null:
 			_arms_l_bone = _bone(_arms_l_skel, "hand_l")
+			_arms_l_skel.force_update_all_bone_transforms()
 			var rho := _grip_rho()
-			_curl_fingers(_arms_l_skel, "l", rho)
-			_pose_thumb(_arms_l_skel, "l", rho, 0.0)
 			_arms_l_anchor = _grip_anchor(_arms_l_skel, "l", ARM_L_SCALE, grip_bar,
 				ARM_L_FORE, ARM_L_ROLL, _tool.transform * ARM_L_GRIP, rho)
-			# The rig's rest pose already folds the thumb across the fingers, which is
-			# exactly where a thumb sits on a grip. Posing it only drags the base off
-			# the far side and stretches the webbing into a fin.
 			_place_arm_l()
 
 	# BARE LEFT ARM (open hand for products and shelves)
@@ -339,18 +342,23 @@ func _build_viewmodel() -> void:
 	_hand_open.name = "HandOpen"
 	_open_pivot.add_child(_hand_open)
 
-	if arm_scene != null and arm_l_mesh != null:
-		_arms_open = _make_arm(arm_scene, arm_l_mesh)
+	if arm_scene != null:
+		_arms_open = _make_arm_side(arm_scene, "l")
 		_hand_open.add_child(_arms_open)
-		var mi_o := _find_node_of_class(_arms_open, "MeshInstance3D") as MeshInstance3D
+		for node in _arms_open.find_children("*", "MeshInstance3D", true, false):
+			var mi_o := node as MeshInstance3D
+			if mi_o.visible:
+				_prepare_hand_mesh(mi_o)
 		_arms_open_skel = _find_node_of_class(_arms_open, "Skeleton3D") as Skeleton3D
-		if mi_o != null and _arms_open_skel != null:
-			_prepare_hand_mesh(mi_o)
+		_arms_open_anim = _arms_open.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if _arms_open_anim != null and _arms_open_anim.has_animation("idle_open"):
+			_arms_open_anim.play("idle_open")
+			_arms_open_anim.seek(0.0, true)
+		if _arms_open_skel != null:
 			_arms_open_bone = _bone(_arms_open_skel, "hand_l")
-			_open_fingers(_arms_open_skel, "l")
 			_arms_open_skel.force_update_all_bone_transforms()
 			_arms_open_anchor = _arm_anchor(_arms_open_skel, "l", ARM_L_SCALE,
-				HAND_OPEN_BAR, HAND_OPEN_FORE, HAND_OPEN_TARGET, 0.0)
+					HAND_OPEN_BAR, HAND_OPEN_FORE, HAND_OPEN_TARGET, 0.0)
 			_place_open_arm()
 
 	# Whatever the player is carrying rides in that open palm.
@@ -402,19 +410,24 @@ func _build_viewmodel() -> void:
 	_arm_r.name = "HandR"
 	_bag_pivot.add_child(_arm_r)
 
-	if arm_scene != null and arm_r_mesh != null:
-		_arms_r = _make_arm(arm_scene, arm_r_mesh)
+	if arm_scene != null:
+		_arms_r = _make_arm_side(arm_scene, "r")
 		_arm_r.add_child(_arms_r)
-		var mi_r := _find_node_of_class(_arms_r, "MeshInstance3D") as MeshInstance3D
+		for node in _arms_r.find_children("*", "MeshInstance3D", true, false):
+			var mi_r := node as MeshInstance3D
+			if mi_r.visible:
+				_prepare_hand_mesh(mi_r)
 		_arms_r_skel = _find_node_of_class(_arms_r, "Skeleton3D") as Skeleton3D
-		if mi_r != null and _arms_r_skel != null:
-			_prepare_hand_mesh(mi_r)
+		_arms_r_anim = _arms_r.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if _arms_r_anim != null and _arms_r_anim.has_animation("hold_bag"):
+			_arms_r_anim.play("hold_bag")
+			_arms_r_anim.seek(0.0, true)
+		if _arms_r_skel != null:
 			_arms_r_bone = _bone(_arms_r_skel, "hand_r")
-			_curl_fingers(_arms_r_skel, "r", 0.030 * ARM_LOCAL)
+			_arms_r_skel.force_update_all_bone_transforms()
 			var bag_bar := (Vector3.UP - Vector3.RIGHT * Vector3.RIGHT.dot(Vector3.UP)).normalized()
 			_arms_r_anchor = _arm_anchor(_arms_r_skel, "r", ARM_R_SCALE, bag_bar,
 				ARM_R_FORE, ARM_R_GRIP, ARM_R_ROLL)
-			_pose_thumb(_arms_r_skel, "r", 0.030 * ARM_LOCAL, 0.0)
 			_place_arm_r()
 
 	var fill_light_r := OmniLight3D.new()
@@ -635,6 +648,17 @@ func _make_arm(scene: PackedScene, mesh: Mesh) -> Node3D:
 	return arm
 
 
+func _make_arm_side(scene: PackedScene, show_side: String) -> Node3D:
+	var arm := scene.instantiate() as Node3D
+	for node in arm.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.name == "Arm_L":
+			mi.visible = (show_side == "l")
+		elif mi.name == "Arm_R":
+			mi.visible = (show_side == "r")
+	return arm
+
+
 func _prepare_hand_mesh(mi: MeshInstance3D) -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# The FBX has no albedo texture; new_diff.png is the matching MakeHuman skin
@@ -796,22 +820,20 @@ func _grip_anchor(skel: Skeleton3D, side: String, s: float, bar_axis: Vector3, f
 
 
 func _palm_normal(skel: Skeleton3D, side: String) -> Vector3:
-	# The palm is square to both the knuckle line and the fingers, so their cross
-	# product is the normal. In this rig the fingers run along +X while the wrist sits
-	# almost straight below the knuckles, so the finger bone - not the wrist->knuckle
-	# vector - is the only direction worth building this from.
-	var hb := _bone(skel, "hand_" + side)
 	var ib := _bone(skel, "index_01_" + side)
 	var i2 := _bone(skel, "index_02_" + side)
 	var pb := _bone(skel, "pinky_01_" + side)
-	var tb := _bone(skel, "thumb_01_" + side)
-	if hb < 0 or ib < 0 or i2 < 0 or pb < 0 or tb < 0:
+	if ib < 0 or i2 < 0 or pb < 0:
 		return Vector3.DOWN
 	var hinge := (_bone_rest_in_skel(skel, ib).origin - _bone_rest_in_skel(skel, pb).origin).normalized()
 	var fwd := (_bone_rest_in_skel(skel, i2).origin - _bone_rest_in_skel(skel, ib).origin).normalized()
 	fwd = (fwd - hinge * hinge.dot(fwd)).normalized()
-	var n := fwd.cross(hinge).normalized()
-	if n.dot(_bone_rest_in_skel(skel, tb).origin - _bone_rest_in_skel(skel, hb).origin) < 0.0:
+	# hinge x fwd points out of the left palm and out of the right back; negating
+	# the right side makes both hands return their true palm normal. The old
+	# thumb_01 probe is gone because the thumb base sits almost in the palm plane
+	# and its sign flipped at random with the bind pose.
+	var n := hinge.cross(fwd).normalized()
+	if side == "r":
 		n = -n
 	return n
 
@@ -1164,46 +1186,38 @@ func _place_open_arm() -> void:
 
 
 func _refresh_carry() -> void:
-	# The hand is only worth having if the thing being carried is in it, so the top
-	# of the stack gets the same sculpted catalog model that sits on the shelf,
-	# fitted to the palm and stood on its base instead of a generic box.
 	if _carry_holder == null:
 		return
 	for c in _carry_holder.get_children():
 		c.queue_free()
 	if stack.is_empty():
 		_carry_holder.visible = false
-		if _arms_open_skel != null:
-			_open_fingers(_arms_open_skel, "l")
+		if _arms_open_anim != null and _arms_open_anim.has_animation("idle_open"):
+			_arms_open_anim.play("idle_open", 0.15)
 		return
 	var dept: int = stack.back()
 	var hero: Dictionary = stack_models.back() if stack_models.size() == stack.size() else {}
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 8123 + dept * 977 + stack.size() * 131
-	# Close the fingers into a cradle so the pack is actually held instead of
-	# balancing on a flat open palm.
-	if _arms_open_skel != null:
-		_carry_fingers(_arms_open_skel, "l")
-	# The palm faces the player, so the pack has to sit in front of it with its back
-	# against the skin; the old target point is inside the wrist and made
-	# every product float above the hand.
-	var palm := _palm_frame()
 	if hero.is_empty():
 		hero = ModelCatalog.pick(dept)
 	var fit := _carry_fit(hero) if not hero.is_empty() else 1.0
 	var half_d := maxf(float(hero.get("d", 0.12)) * fit, 0.02) * 0.5
-	# One-handed grip: the pack stands on the palm with its back against the skin.
-	# Line its upright axis up with the knuckles and drop the base to the heel of
-	# the palm, then push it toward the camera along the view ray. Offsetting along
-	# the palm normal instead slides the pack sideways across the screen and leaves
-	# the fingers closing on empty air beside it.
-	var cam_pos := _open_pivot.global_transform.affine_inverse() * camera.global_position
-	var knuckles := palm.origin + palm.basis.y * 0.055
-	var base_pt := knuckles + Vector3.DOWN * 0.07 + Vector3.RIGHT * 0.02
-	var ray := (base_pt - cam_pos).normalized()
-	_carry_holder.transform = Transform3D(
-		Basis(Vector3.RIGHT, deg_to_rad(12.0)) * Basis(Vector3.UP, deg_to_rad(-10.0)),
-		base_pt - ray * (half_d - 0.002))
+	var half_h := maxf(float(hero.get("height", 0.15)) * fit, 0.04) * 0.5
+
+	if _arms_open_anim != null:
+		var anim_name := "carry_box" if half_d > 0.022 else "carry_palm"
+		if _arms_open_anim.has_animation(anim_name):
+			_arms_open_anim.play(anim_name, 0.15)
+
+	var palm := _palm_frame()
+	# Sit the base on the heel of the palm and push it out only by its own half
+	# depth. The old offset parked the pack over the wrist, so its corner sank into
+	# the thenar skin while the fingers closed on air in front of it.
+	var carry_pos := palm.origin + palm.basis.y * (0.030 - half_h * 0.30) + palm.basis.z * (half_d + 0.006)
+	var carry_basis := palm.basis * Basis(Vector3.RIGHT, deg_to_rad(-10.0)) * Basis(Vector3.UP, deg_to_rad(10.0))
+	_carry_holder.transform = Transform3D(carry_basis, carry_pos)
+
 	if not _build_carry_model(dept, rng, hero):
 		var holder := Node3D.new()
 		_carry_holder.add_child(holder)
