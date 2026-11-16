@@ -901,7 +901,7 @@ func _refresh_carry() -> void:
 	# down it. Laying it over the knuckle line lets the fingers close on its near
 	# face and the thumb meet them from the other side.
 	var carry_basis := palm.basis * Basis(Vector3.BACK, deg_to_rad(-90.0))
-	var carry_pos := palm.origin + palm.basis.y * 0.030 + palm.basis.z * (half_d + 0.006) - carry_basis.y * half_h
+	var carry_pos := palm.origin + palm.basis.y * 0.045 + palm.basis.z * (half_d - 0.002) - carry_basis.y * half_h
 	_carry_holder.transform = Transform3D(carry_basis, carry_pos)
 
 	if not _build_carry_model(dept, rng, hero):
@@ -922,7 +922,7 @@ func _carry_fit(hero: Dictionary) -> float:
 	var h := maxf(float(hero.get("height", 0.3)), 0.01)
 	var foot := maxf(float(hero.get("w", 0.3)), float(hero.get("d", 0.3)))
 	var deep := maxf(float(hero.get("d", 0.3)), 0.01)
-	return minf(minf(0.155 / h, 0.115 / maxf(foot, 0.01)), 0.07 / deep)
+	return minf(minf(0.155 / h, 0.115 / maxf(foot, 0.01)), 0.05 / deep)
 
 func _palm_frame() -> Transform3D:
 	# Palm surface and its frame in the open-hand pivot's space: X along the knuckle
@@ -944,7 +944,12 @@ func _palm_frame() -> Transform3D:
 	var z := (n - y * y.dot(n)).normalized()
 	var x := y.cross(z).normalized()
 	var to_pivot := _open_pivot.global_transform.affine_inverse() * _arms_open_skel.global_transform
-	return Transform3D(to_pivot.basis * Basis(x, y, z), to_pivot * palm_s)
+	# The skeleton carries the rig's 0.1 export scale, so the frame has to be built
+	# from unit axes or every metre-sized offset below lands a tenth of the way out.
+	var yp := (to_pivot.basis * y).normalized()
+	var zp := ((to_pivot.basis * n) - yp * yp.dot(to_pivot.basis * n)).normalized()
+	var xp := yp.cross(zp).normalized()
+	return Transform3D(Basis(xp, yp, zp), to_pivot * palm_s)
 
 func _build_carry_model(dept: int, rng: RandomNumberGenerator, hero: Dictionary) -> bool:
 	if hero.is_empty():
@@ -957,15 +962,20 @@ func _build_carry_model(dept: int, rng: RandomNumberGenerator, hero: Dictionary)
 	var inst := packed.instantiate() as Node3D
 	if inst == null:
 		return false
+	# The catalog meshes are authored lying along -Z with their origin at the top,
+	# so using them raw hangs the product half its length below the palm. Stand the
+	# longest axis up and drop the base onto the holder's origin, then the carry
+	# frame can treat every item as "base centre at 0, height along +Y".
+	var holder := Node3D.new()
+	holder.add_child(inst)
+	_carry_holder.add_child(holder)
+	_normalize_carry_item(inst)
 	# Held packs should read like a real item in the palm: tall enough to see at a
 	# glance, small enough that it never swallows the hand or the screen.
 	var fit := _carry_fit(hero)
-	inst.scale = Vector3.ONE * (float(hero.get("scale", 1.0)) * fit)
-	# The scan origin is the centre of the pack's base: sit it on the palm and
-	# turn it to a three-quarter view so the label reads without looking pasted on.
-	inst.position = Vector3(0.0, -0.004, 0.0)
-	inst.rotation.y = rng.randf_range(0.20, 0.38)
-	_carry_holder.add_child(inst)
+	holder.scale = Vector3.ONE * (float(hero.get("scale", 1.0)) * fit)
+	# Turn it to a three-quarter view so the label reads without looking pasted on.
+	holder.rotation.y = rng.randf_range(0.20, 0.38)
 	for node in inst.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		if mi == null:
@@ -974,6 +984,37 @@ func _build_carry_model(dept: int, rng: RandomNumberGenerator, hero: Dictionary)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		ProductShapes.shop_material(mi)
 	return true
+
+func _normalize_carry_item(inst: Node3D) -> void:
+	var box := _item_aabb(inst)
+	var size := box.size
+	if size.z >= size.x and size.z >= size.y:
+		inst.rotation.x = PI * 0.5
+	elif size.x >= size.y:
+		inst.rotation.z = -PI * 0.5
+	box = _item_aabb(inst)
+	inst.position = Vector3(
+		-(box.position.x + box.size.x * 0.5),
+		-box.position.y,
+		-(box.position.z + box.size.z * 0.5))
+
+func _item_aabb(inst: Node3D) -> AABB:
+	# Bounding box of the model in the parent's space, so the rotation applied just
+	# above is part of the measurement and the parent scale never leaks in.
+	var parent := inst.get_parent() as Node3D
+	if parent == null:
+		return AABB()
+	var inv := parent.global_transform.affine_inverse()
+	var out := AABB()
+	var first := true
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var b: AABB = inv * mi.global_transform * mi.mesh.get_aabb()
+		out = b if first else out.merge(b)
+		first = false
+	return out
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:

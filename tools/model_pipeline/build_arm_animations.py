@@ -161,27 +161,26 @@ def pose_idle_open(arm_obj):
 
 
 def pose_carry_palm(arm_obj):
-    # The carried pack sits in front of the palm, so the fingers stay close to
-    # their rest line and the thumb does the holding: it sweeps over the front
-    # face instead of hiding behind the pack, which is what made the hand read
-    # as a tray rather than a grip.
-    curl_finger(arm_obj, "l", "index", [30.0, 40.0, 26.0])
-    curl_finger(arm_obj, "l", "middle", [34.0, 44.0, 28.0])
-    curl_finger(arm_obj, "l", "ring", [34.0, 44.0, 28.0])
-    curl_finger(arm_obj, "l", "pinky", [30.0, 38.0, 24.0])
-    pose_thumb(arm_obj, "l", 6.0, [58.0, 62.0, 42.0])
+    # Flat/slim packs sit across the knuckle line at Y~52mm, so the fingers arch
+    # over the top edge and the thumb supports the lower-front edge.
+    curl_finger(arm_obj, "l", "index", [38.0, 48.0, 36.0])
+    curl_finger(arm_obj, "l", "middle", [42.0, 52.0, 38.0])
+    curl_finger(arm_obj, "l", "ring", [42.0, 52.0, 38.0])
+    curl_finger(arm_obj, "l", "pinky", [38.0, 48.0, 36.0])
+    pose_thumb(arm_obj, "l", 14.0, [44.0, 48.0, 32.0])
 
 
 def pose_carry_box(arm_obj):
-    # Thick packs (cans, boxes) ride one half-depth off the palm, so the fingers
-    # have to close all the way over their front face and the thumb has to land
-    # beside them. Without this the pack sits in front of a flat hand and reads
-    # as glued on instead of gripped.
-    curl_finger(arm_obj, "l", "index", [70.0, 80.0, 46.0])
-    curl_finger(arm_obj, "l", "middle", [74.0, 84.0, 48.0])
-    curl_finger(arm_obj, "l", "ring", [74.0, 84.0, 48.0])
-    curl_finger(arm_obj, "l", "pinky", [66.0, 76.0, 42.0])
-    pose_thumb(arm_obj, "l", 8.0, [62.0, 66.0, 44.0])
+    # Cans and boxes sit across the knuckle line (center at Y~52mm, Z~half_d).
+    # Moderate MCP/PIP flexion (~55/64 deg) sends the proximal and middle
+    # phalanges out over the top of the barrel (Z up to ~50mm) so the distal
+    # tips curve down the front face, while the thumb cradles the lower-front
+    # edge at Y~34mm instead of spearing through the center.
+    curl_finger(arm_obj, "l", "index", [54.0, 62.0, 50.0])
+    curl_finger(arm_obj, "l", "middle", [56.0, 64.0, 52.0])
+    curl_finger(arm_obj, "l", "ring", [56.0, 64.0, 52.0])
+    curl_finger(arm_obj, "l", "pinky", [56.0, 64.0, 50.0])
+    pose_thumb(arm_obj, "l", 20.0, [52.0, 52.0, 34.0])
 
 
 def pose_grip_grabber(arm_obj):
