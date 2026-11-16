@@ -26,6 +26,7 @@ var checkouts: Array = []
 var deliveries: Array = []
 var staff_members: Array = []
 var lane_status_labels: Array[Label3D] = []
+var fridges: Array[RefrigeratedDisplay] = []
 
 var _rng := RandomNumberGenerator.new()
 var _checkout_beep: float = 7.0
@@ -744,7 +745,6 @@ func _build_decor() -> void:
 	_build_plants()
 	_build_pillars()
 	_build_branding()
-	_build_carts()
 	_build_produce()
 	_build_cleaning_props()
 	_build_equipment()
@@ -1080,64 +1080,112 @@ func _metal_hang() -> StandardMaterial3D:
 	return ProductShapes._mat(Color(0.35, 0.37, 0.4), 0.6, 0.4)
 
 
-func _build_carts() -> void:
-	var steel := ProductShapes._mat(Color(0.62, 0.65, 0.7), 0.8, 0.3)
-	var spots: Array[Vector3] = [Vector3(-5.5, 0, 14.6), Vector3(-4.4, 0, 14.6)]
-	for p in spots:
-		_wall_box(Vector3(0.55, 0.05, 0.85), p + Vector3(0, 0.35, 0), steel, false)
-		_wall_box(Vector3(0.55, 0.4, 0.05), p + Vector3(0, 0.55, -0.4), steel, false)
-		_wall_box(Vector3(0.55, 0.4, 0.05), p + Vector3(0, 0.55, 0.4), steel, false)
-		_wall_box(Vector3(0.05, 0.4, 0.8), p + Vector3(-0.25, 0.55, 0), steel, false)
-		_wall_box(Vector3(0.05, 0.4, 0.8), p + Vector3(0.25, 0.55, 0), steel, false)
-		_wall_box(Vector3(0.04, 0.5, 0.04), p + Vector3(-0.25, 0.85, 0.45), steel, false)
-		_wall_box(Vector3(0.04, 0.5, 0.04), p + Vector3(0.25, 0.85, 0.45), steel, false)
-		_wall_box(Vector3(0.58, 0.05, 0.05), p + Vector3(0, 1.1, 0.45), steel, false)
-		for wx in [-0.22, 0.22]:
-			for wz in [-0.35, 0.35]:
-				var wheel := CylinderMesh.new()
-				wheel.top_radius = 0.07
-				wheel.bottom_radius = 0.07
-				wheel.height = 0.05
-				wheel.radial_segments = 10
-				var wmi := MeshInstance3D.new()
-				wmi.mesh = wheel
-				wmi.material_override = ProductShapes._mat(Color(0.1, 0.1, 0.1), 0.2, 0.6)
-				wmi.position = p + Vector3(wx, 0.07, wz)
-				wmi.rotation.z = PI * 0.5
-				add_child(wmi)
-
-
 func _build_produce() -> void:
-	var crate_mat := ProductShapes._mat(Color(0.6, 0.4, 0.22), 0.0, 0.75)
-	var spots: Array[Vector3] = [Vector3(-20.0, 0, -2.0), Vector3(-20.0, 0, 0.2)]
-	var fruit_cols: Array[Color] = [Color(0.85, 0.2, 0.15), Color(0.95, 0.6, 0.1), Color(0.4, 0.72, 0.22), Color(0.9, 0.85, 0.25)]
-	for p in spots:
-		_wall_box(Vector3(1.0, 0.62, 0.8), p + Vector3(0, 0.31, 0), crate_mat)
-		for i in 12:
-			var sph := SphereMesh.new()
-			var r := randf_range(0.075, 0.1)
-			sph.radius = r
-			sph.height = r * 2.0
-			sph.radial_segments = 10
-			sph.rings = 6
-			var mi := MeshInstance3D.new()
-			mi.mesh = sph
-			mi.material_override = ProductShapes._mat(fruit_cols[i % 4], 0.0, 0.35)
-			mi.position = p + Vector3(randf_range(-0.38, 0.38), 0.66 + randf_range(0.0, 0.1), randf_range(-0.28, 0.28))
-			add_child(mi)
-		# Two real produce scans per crate so the fruit corner is not all spheres.
-		for k in 2:
-			var m: Dictionary = ModelCatalog.pick(0)
-			if m.is_empty():
-				continue
-			var packed := ModelCatalog.scene(String(m["path"]))
-			var decor := _place_scene(
-				packed,
-				p + Vector3(randf_range(-0.28, 0.28), 0.63, randf_range(-0.2, 0.2)),
-				randf_range(0.0, TAU),
-				float(m["scale"]))
-			if decor != null:
-				decor.name = "Produce_%s" % String(m["name"])
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 74129
+	var timber := ProductShapes._mat(Color(0.43, 0.25, 0.12), 0.0, 0.82)
+	var timber_light := ProductShapes._mat(Color(0.62, 0.39, 0.20), 0.0, 0.76)
+	var leaf_crate := ProductShapes._mat(Color(0.16, 0.39, 0.20), 0.0, 0.74)
+	var leaf_edge := ProductShapes._mat(Color(0.29, 0.54, 0.28), 0.0, 0.68)
+	var header_mat := ProductShapes._mat(Color(0.08, 0.30, 0.19), 0.0, 0.58)
+	var display := Node3D.new()
+	display.name = "FreshProduceDisplay"
+	display.position = Vector3(-20.2, 0.0, -3.15)
+	add_child(display)
+
+	# Waist-high timber island and reinforced corners.
+	_add_display_box(display, Vector3(3.25, 0.16, 2.05), Vector3(0, 0.57, 0), timber)
+	_add_display_box(display, Vector3(3.34, 0.10, 2.14), Vector3(0, 0.69, 0), timber_light)
+	_add_display_box(display, Vector3(3.12, 0.13, 1.91), Vector3(0, 0.78, 0), timber)
+	for x in [-1.48, 1.48]:
+		for z in [-0.93, 0.93]:
+			_add_display_box(display, Vector3(0.13, 0.46, 0.13), Vector3(x, 0.29, z), timber)
+		for y in [0.18, 0.36, 0.54]:
+			_add_display_box(display, Vector3(0.055, 0.06, 1.88), Vector3(x, y, 0), timber_light)
+	for z in [-0.94, 0.94]:
+		for y in [0.22, 0.43]:
+			_add_display_box(display, Vector3(2.92, 0.055, 0.065), Vector3(0, y, z), timber_light)
+
+	_add_display_box(display, Vector3(3.15, 0.62, 0.10), Vector3(0, 1.92, -0.97), header_mat)
+	_add_display_box(display, Vector3(3.18, 0.055, 0.13), Vector3(0, 1.60, -0.96), timber_light)
+	var sign := Label3D.new()
+	sign.text = "خُضَار طازجة"
+	sign.font = ProductShapes.sign_font()
+	sign.font_size = 48
+	sign.pixel_size = 0.0042
+	sign.modulate = Color(0.98, 0.92, 0.73)
+	sign.outline_size = 8
+	sign.position = Vector3(0, 1.93, -0.905)
+	display.add_child(sign)
+
+	var varieties: Array[Array] = [["lettuce", "broccoli", "cabbage"], ["carrots", "zucchini", "red_peppers"], ["potatoes", "red_onions", "green_grapes"]]
+	var names: PackedStringArray = ["ورقيات", "خضار يومية", "طازج اليوم"]
+	var produce_deck: Array = ModelCatalog.DECKS[0]
+	for i in 3:
+		var bin := Node3D.new()
+		bin.name = "GreenProduceBin_%d" % i
+		bin.position = Vector3(-1.02 + float(i) * 1.02, 0.83, 0.20)
+		bin.rotation.x = deg_to_rad(-9.0)
+		display.add_child(bin)
+		_add_display_box(bin, Vector3(0.88, 0.075, 0.83), Vector3(0, 0.02, 0), leaf_crate)
+		for side in [-1.0, 1.0]:
+			_add_display_box(bin, Vector3(0.075, 0.38, 0.88), Vector3(side * 0.405, 0.19, 0), leaf_edge)
+		_add_display_box(bin, Vector3(0.73, 0.34, 0.065), Vector3(0, 0.18, 0.395), leaf_crate)
+		_add_display_box(bin, Vector3(0.76, 0.055, 0.09), Vector3(0, 0.38, 0.40), leaf_edge)
+		var crate_label := Label3D.new()
+		crate_label.text = names[i]
+		crate_label.font = ProductShapes.sign_font()
+		crate_label.font_size = 19
+		crate_label.pixel_size = 0.0031
+		crate_label.modulate = Color(0.96, 0.99, 0.89)
+		crate_label.outline_size = 4
+		crate_label.position = Vector3(0, 0.22, 0.435)
+		bin.add_child(crate_label)
+
+		var entries: Array = []
+		for hero in produce_deck:
+			if String(hero.get("name", "")) in varieties[i]:
+				entries.append(hero)
+		for row in 2:
+			for col in 3:
+				if entries.is_empty():
+					continue
+				var hero: Dictionary = entries[(row * 3 + col) % entries.size()]
+				var packed := ModelCatalog.scene(String(hero["path"]))
+				if packed == null:
+					continue
+				var item := packed.instantiate() as Node3D
+				if item == null:
+					continue
+				bin.add_child(item)
+				item.scale = Vector3.ONE * float(hero["scale"])
+				var dims := ProductShapes.upright_model(item)
+				var longest := maxf(dims.x, maxf(dims.y, dims.z))
+				var fit_factor := minf(1.0, 0.34 / maxf(longest, 0.01))
+				item.scale *= fit_factor
+				item.position *= fit_factor
+				item.position += Vector3(-0.24 + col * 0.24, 0.13, -0.13 + row * 0.23)
+				item.rotation.y = rng.randf_range(-0.24, 0.24)
+				for node in item.find_children("*", "MeshInstance3D", true, false):
+					var mi := node as MeshInstance3D
+					if mi != null:
+						ProductShapes.shop_material(mi)
+						mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				if item is MeshInstance3D:
+					ProductShapes.shop_material(item as MeshInstance3D)
+					(item as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _add_display_box(parent: Node3D, size: Vector3, pos: Vector3, material: Material) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var instance := MeshInstance3D.new()
+	instance.mesh = mesh
+	instance.material_override = material
+	instance.position = pos
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(instance)
+	return instance
 
 
 func _build_equipment() -> void:
@@ -1186,22 +1234,22 @@ func _build_imported_props() -> void:
 	const GANDOLA := "res://assets/models/props/gandola_shelf.glb"
 	const PACK := "res://assets/models/props/shop_asset_pack.glb"
 
-	# Imported cart display along the left side, clear of the queue route.
-	for spot in [
-		{"pos": Vector3(-10.0, 0.0, 14.7), "yaw": 0.22},
-		{"pos": Vector3(-11.8, 0.0, 14.7), "yaw": -0.14},
-		{"pos": Vector3(-13.6, 0.0, 14.7), "yaw": 0.05},
-	]:
-		_spawn_import(CART, spot["pos"], spot["yaw"], 1.02, true)
+	# One large imported cart stays on display, clear of the queue route.
+	_spawn_import(CART, Vector3(-10.0, 0.0, 14.7), 0.12, 1.48, true)
 
 	# A real register on every lane, on the belt in front of the scanner screen.
 	for i in 4:
 		var cx := -7.0 + i * 7.0
 		_spawn_import(REGISTER, Vector3(cx + 0.55, 1.06, 11.5), PI, 0.42, false)
 
-	# Chilled wall along the back of the store.
+	# Chilled wall along the back of the store. Each unit owns its stock slots,
+	# but keeps the same Shelf interface used by shoppers and the player.
 	for x in [-19.6, -16.3, -13.0]:
-		_spawn_import(FRIDGE, Vector3(x, 0.0, -15.05), 0.0, 2.16, true)
+		var fridge := RefrigeratedDisplay.new()
+		fridge.setup_display(ModelCatalog.scene(FRIDGE), 5, GameState.DEPARTMENT_COLORS[5], Vector3(x, 0.0, -15.05), 0.0, 2.16)
+		add_child(fridge)
+		fridges.append(fridge)
+		shelves.append(fridge)
 
 	# Two gondola islands, kept to two because the mesh is 360k triangles.
 	_spawn_import(GANDOLA, Vector3(-10.5, 0.0, 7.0), 0.0, 1.95, true)
@@ -2113,6 +2161,9 @@ func _is_position_clear(p: Vector3) -> bool:
 	if absf(p.x - DELIVERY_SPOT.x) < 2.8 and p.z > 11.9:
 		return false
 	if absf(p.z - 14.6) < 1.2 and p.x > -7.0 and p.x < -3.0:
+		return false
+	# Keep trash and stray stock out of the timber produce stand.
+	if absf(p.x + 20.2) < 1.85 and absf(p.z + 3.15) < 1.45:
 		return false
 	if p.distance_to(Vector3(12.6, 0, 6.2)) < 1.0:
 		return false

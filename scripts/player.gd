@@ -1259,7 +1259,7 @@ func try_interact() -> void:
 			Sfx.play("error", 1.0, -6.0)
 			return
 		_pick_up_product(collider)
-	elif collider.has_meta("is_shelf"):
+	elif collider.has_meta("is_shelf") or collider.has_meta("is_refrigerator"):
 		_place_on_shelf(collider)
 	elif collider.get_parent() is Shelf:
 		_place_on_shelf(collider.get_parent())

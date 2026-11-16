@@ -248,8 +248,8 @@ func place_product(color: Color, near: Vector3 = Vector3.ZERO, model_info: Dicti
 	var rng := RandomNumberGenerator.new()
 	rng.seed = placed_count * 7919 + department * 104729
 	var holder := Node3D.new()
-	holder.position = slot.origin
-	holder.rotation.y = rng.randf_range(-0.5, 0.5)
+	holder.transform = slot
+	holder.basis = slot.basis * Basis(Vector3.UP, rng.randf_range(-0.5, 0.5))
 	add_child(holder)
 	_build_shelf_model(holder, rng, model_info)
 	holder.scale = Vector3(0.01, 0.01, 0.01)
@@ -271,12 +271,14 @@ func _build_shelf_model(holder: Node3D, rng: RandomNumberGenerator, model_info: 
 		if packed != null:
 			var inst := packed.instantiate() as Node3D
 			if inst != null:
-				var h := maxf(float(hero.get("height", 0.3)), 0.01)
-				var foot := maxf(float(hero.get("w", 0.3)), float(hero.get("d", 0.3)))
-				var fit := minf(0.34 / h, 0.32 / maxf(foot, 0.01))
-				inst.scale = Vector3.ONE * (float(hero.get("scale", 1.0)) * fit)
-				inst.rotation.y = rng.randf_range(-0.25, 0.25)
 				holder.add_child(inst)
+				inst.scale = Vector3.ONE * float(hero.get("scale", 1.0))
+				var fitted := ProductShapes.upright_model(inst)
+				var longest := maxf(fitted.x, maxf(fitted.y, fitted.z))
+				var fit_factor := minf(1.0, 0.30 / maxf(longest, 0.01))
+				inst.scale *= fit_factor
+				inst.position *= fit_factor
+				inst.rotation.y = rng.randf_range(-0.25, 0.25)
 				for node in inst.find_children("*", "MeshInstance3D", true, false):
 					var mi := node as MeshInstance3D
 					if mi == null:

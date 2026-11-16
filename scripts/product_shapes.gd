@@ -30,6 +30,50 @@ static func highlight_material(color: Color) -> StandardMaterial3D:
 	return _mat(color.lightened(0.45), 0.0, 0.4, 2.5)
 
 
+# Catalog models are authored with their long axis pointing along X or Z. Stand
+# that axis upright and normalize the pivot so the base rests at y=0.
+static func upright_model(inst: Node3D) -> Vector3:
+	var parent := inst.get_parent() as Node3D
+	if parent == null:
+		return Vector3.ZERO
+	var bounds := _model_bounds_in_parent(inst, parent)
+	if bounds.size.length_squared() < 0.000001:
+		return Vector3.ZERO
+	if bounds.size.z > bounds.size.x and bounds.size.z > bounds.size.y:
+		inst.rotation.x = PI * 0.5
+	elif bounds.size.x > bounds.size.y:
+		inst.rotation.z = -PI * 0.5
+	bounds = _model_bounds_in_parent(inst, parent)
+	inst.position -= Vector3(
+		bounds.position.x + bounds.size.x * 0.5,
+		bounds.position.y,
+		bounds.position.z + bounds.size.z * 0.5)
+	return bounds.size
+
+
+static func _model_bounds_in_parent(inst: Node3D, parent: Node3D) -> AABB:
+	var bounds := AABB()
+	var first := true
+	var meshes: Array[Node] = inst.find_children("*", "MeshInstance3D", true, false)
+	if inst is MeshInstance3D:
+		meshes.append(inst)
+	for node in meshes:
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var relative := Transform3D.IDENTITY
+		var current := mi as Node3D
+		while current != null and current != parent:
+			relative = current.transform * relative
+			current = current.get_parent() as Node3D
+		if current != parent:
+			continue
+		var box: AABB = relative * mi.mesh.get_aabb()
+		bounds = box if first else bounds.merge(box)
+		first = false
+	return bounds
+
+
 # The sculpted models ship with glossy, often fully metallic PBR materials
 # tuned for a studio HDRI. Under the store's omni lights those read almost
 # black, so flatten the metal response on a copy while keeping the albedo,

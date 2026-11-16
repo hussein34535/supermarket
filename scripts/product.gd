@@ -28,12 +28,26 @@ func setup(dept: int, color: Color, hero_override: Dictionary = {}) -> void:
 	if not hero.is_empty():
 		var packed := ModelCatalog.scene(String(hero["path"]))
 		if packed != null:
-			var h := float(hero["height"])
-			var w := float(hero.get("w", 0.34))
-			var d := float(hero.get("d", 0.34))
-			box = Vector3(clampf(w, 0.12, 0.6), maxf(h, 0.08), clampf(d, 0.12, 0.6))
-			_build_hero(packed.instantiate(), float(hero["scale"]))
-			model_info = hero.duplicate()
+			var inst := packed.instantiate() as Node3D
+			if inst != null:
+				_build_hero(inst, float(hero["scale"]))
+				var fitted := ProductShapes.upright_model(inst)
+				var fit_factor := 1.0
+				var longest := maxf(fitted.x, maxf(fitted.y, fitted.z))
+				if longest > 0.44:
+					fit_factor = 0.44 / longest
+					inst.scale *= fit_factor
+				var dimensions := fitted * fit_factor
+				box = Vector3(
+					clampf(dimensions.x, 0.10, 0.48),
+					clampf(dimensions.y, 0.08, 0.44),
+					clampf(dimensions.z, 0.10, 0.48))
+				var fitted_info := hero.duplicate()
+				fitted_info["scale"] = float(hero["scale"]) * fit_factor
+				fitted_info["height"] = box.y
+				fitted_info["w"] = box.x
+				fitted_info["d"] = box.z
+				model_info = fitted_info
 	if _meshes.is_empty():
 		_meshes = ProductShapes.build(self, dept, color, rng, s)
 	for mi in _meshes:
