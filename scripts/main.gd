@@ -691,26 +691,27 @@ func _build_entrance() -> void:
 	_wall_box(Vector3(0.12, 2.9, 0.14), Vector3(-2.6, 1.45, door_z - 0.05), frame_mat, false)
 	_wall_box(Vector3(0.12, 2.9, 0.14), Vector3(2.6, 1.45, door_z - 0.05), frame_mat, false)
 	_wall_box(Vector3(5.32, 0.12, 0.14), Vector3(0, 2.9, door_z - 0.05), frame_mat, false)
-	_wall_box(Vector3(0.12, 2.9, 0.14), Vector3(0, 1.45, door_z - 0.05), frame_mat, false)
 	for side in [-1.0, 1.0]:
-		var x: float = side * 1.3
+		var x: float = side * 1.85
 		var body := StaticBody3D.new()
 		body.collision_layer = 1
 		var mesh := BoxMesh.new()
-		mesh.size = Vector3(2.5, 2.7, 0.06)
+		mesh.size = Vector3(1.45, 2.7, 0.06)
 		var mi := MeshInstance3D.new()
 		mi.mesh = mesh
 		mi.material_override = glass_mat
 		body.add_child(mi)
 		var col := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
-		shape.size = Vector3(2.5, 2.7, 0.12)
+		shape.size = Vector3(1.45, 2.7, 0.12)
 		col.shape = shape
 		body.add_child(col)
 		body.position = Vector3(x, 1.4, door_z - 0.05)
 		add_child(body)
-		_wall_box(Vector3(2.5, 0.06, 0.1), Vector3(x, 2.72, door_z - 0.05), frame_mat, false)
-		_wall_box(Vector3(2.5, 0.06, 0.1), Vector3(x, 0.08, door_z - 0.05), frame_mat, false)
+		_wall_box(Vector3(1.45, 0.06, 0.1), Vector3(x, 2.72, door_z - 0.05), frame_mat, false)
+		_wall_box(Vector3(1.45, 0.06, 0.1), Vector3(x, 0.08, door_z - 0.05), frame_mat, false)
+	for side in [-1.0, 1.0]:
+		_wall_box(Vector3(0.12, 2.9, 0.14), Vector3(side * 1.1, 1.45, door_z - 0.05), frame_mat, false)
 
 	var board := _wall_box(Vector3(5.6, 0.55, 0.12), Vector3(0, 3.35, door_z - 0.2), ProductShapes._mat(Color(0.1, 0.45, 0.25), 0.1, 0.4, 0.3), false)
 	board.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1166,6 +1167,11 @@ func _place_scene(packed: PackedScene, pos: Vector3, yaw: float, s: float) -> No
 		var mi := node as MeshInstance3D
 		if mi != null:
 			ProductShapes.shop_material(mi)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if inst is MeshInstance3D:
+		var root_mesh := inst as MeshInstance3D
+		ProductShapes.shop_material(root_mesh)
+		root_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return inst
 
 
@@ -1180,11 +1186,11 @@ func _build_imported_props() -> void:
 	const GANDOLA := "res://assets/models/props/gandola_shelf.glb"
 	const PACK := "res://assets/models/props/shop_asset_pack.glb"
 
-	# Shopping carts beside the cart bay the procedural ones already occupy.
+	# Imported cart display along the left side, clear of the queue route.
 	for spot in [
-		{"pos": Vector3(-1.95, 0.0, 14.6), "yaw": 0.22},
-		{"pos": Vector3(-6.75, 0.0, 14.5), "yaw": -0.14},
-		{"pos": Vector3(-3.35, 0.0, 14.72), "yaw": 0.05},
+		{"pos": Vector3(-10.0, 0.0, 14.7), "yaw": 0.22},
+		{"pos": Vector3(-11.8, 0.0, 14.7), "yaw": -0.14},
+		{"pos": Vector3(-13.6, 0.0, 14.7), "yaw": 0.05},
 	]:
 		_spawn_import(CART, spot["pos"], spot["yaw"], 1.02, true)
 
@@ -1252,13 +1258,13 @@ func _spawn_pack_part(path: String, part_name: String, pos: Vector3, yaw: float,
 	if box.size.y <= 0.001:
 		root.queue_free()
 		return null
-	var s := target_height / box.size.y
-	root.scale = Vector3.ONE * s
+	root.scale = Vector3.ONE * (target_height / box.size.y)
+	box = _subtree_aabb(part)
 	root.position = pos - Vector3(
-		(box.position.x + box.size.x * 0.5) * s,
-		box.position.y * s,
-		(box.position.z + box.size.z * 0.5) * s)
-	_prop_finish(root, solid)
+		box.position.x + box.size.x * 0.5,
+		box.position.y,
+		box.position.z + box.size.z * 0.5)
+	_prop_finish(root, solid, part)
 	return root
 
 
@@ -1280,14 +1286,21 @@ func _settle(root: Node3D, pos: Vector3) -> void:
 	root.position = pos - Vector3(box.position.x + box.size.x * 0.5, box.position.y, box.position.z + box.size.z * 0.5)
 
 
-func _prop_finish(root: Node3D, solid: bool) -> void:
+func _prop_finish(root: Node3D, solid: bool, retained_part: Node = null) -> void:
 	root.add_to_group("imported_prop")
-	for node in root.find_children("*", "MeshInstance3D", true, false):
+	var target: Node = root
+	if retained_part != null:
+		target = retained_part
+	var meshes: Array[Node] = target.find_children("*", "MeshInstance3D", true, false)
+	if target is MeshInstance3D:
+		meshes.append(target)
+	for node in meshes:
 		var mi := node as MeshInstance3D
 		if mi != null:
 			ProductShapes.shop_material(mi)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if solid:
-		var box := _prop_aabb(root)
+		var box := _subtree_aabb(target) if retained_part != null else _prop_aabb(root)
 		var body := StaticBody3D.new()
 		body.collision_layer = 1
 		var col := CollisionShape3D.new()

@@ -4,6 +4,7 @@ extends RefCounted
 const ROT := PI * 0.5
 
 static var _mat_cache: Dictionary = {}
+static var _shop_mat_cache: Dictionary = {}
 static var _sign_font: Font
 
 
@@ -34,16 +35,41 @@ static func highlight_material(color: Color) -> StandardMaterial3D:
 # black, so flatten the metal response on a copy while keeping the albedo,
 # normal and roughness maps that make the labels readable.
 static func shop_material(mi: MeshInstance3D) -> void:
-	var mat := mi.get_active_material(0)
-	if not (mat is StandardMaterial3D):
+	if mi == null or mi.mesh == null:
 		return
-	var copy := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+	var mesh: Mesh = mi.mesh
+	var mesh_override: Material = mi.material_override
+	for surface_index: int in range(mesh.get_surface_count()):
+		var mat: Material = mi.get_surface_override_material(surface_index)
+		if mat == null:
+			mat = mesh.surface_get_material(surface_index)
+		if mat == null and mesh_override is StandardMaterial3D:
+			mat = mesh_override
+		if mat is StandardMaterial3D:
+			mi.set_surface_override_material(surface_index, _shop_material_copy(mat as StandardMaterial3D))
+	# A StandardMaterial3D whole-mesh override masks the per-surface adaptations.
+	# Drop it after adapting the underlying slots; leave other override types alone.
+	if mesh_override is StandardMaterial3D:
+		mi.material_override = null
+
+
+static func _shop_material_copy(source: StandardMaterial3D) -> StandardMaterial3D:
+	var cache_key: int = source.get_instance_id()
+	if _shop_mat_cache.has(cache_key):
+		var cached: Array = _shop_mat_cache[cache_key]
+		if cached[0] == source:
+			return cached[1] as StandardMaterial3D
+	var copy := source.duplicate() as StandardMaterial3D
 	copy.metallic = 0.0
 	copy.metallic_specular = 0.45
 	copy.roughness = clampf(copy.roughness + 0.2, 0.45, 1.0)
 	copy.albedo_color = copy.albedo_color.lightened(0.1)
 	copy.vertex_color_use_as_albedo = false
-	mi.material_override = copy
+	# Keep source refs alive so instance IDs cannot be recycled into stale cache hits.
+	_shop_mat_cache[cache_key] = [source, copy]
+	# Mark adapted copies too, so calling this again on the same instance is idempotent.
+	_shop_mat_cache[copy.get_instance_id()] = [copy, copy]
+	return copy
 
 
 static func _mat(c: Color, metallic: float = 0.0, rough: float = 0.55, emission: float = 0.0) -> StandardMaterial3D:

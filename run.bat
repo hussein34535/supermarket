@@ -14,4 +14,4 @@ if not exist "%GODOT%" (
   exit /b 1
 )
 
-start "" "%GODOT%" --path "%~dp0."
+start "" "%GODOT%" --rendering-method forward_plus --rendering-driver vulkan --path "%~dp0."
