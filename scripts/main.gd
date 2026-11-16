@@ -60,8 +60,14 @@ func _ready() -> void:
 	_sync_store()
 	_sync_staff()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	if "--capture-test" in OS.get_cmdline_args() or "--capture-test" in OS.get_cmdline_user_args():
-		_capture_and_quit()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_M:
+			get_tree().change_scene_to_file("res://scenes/models_showcase.tscn")
+	# if "--capture-test" in OS.get_cmdline_args() or "--capture-test" in OS.get_cmdline_user_args():
+	# 	_capture_and_quit()
 
 
 func _capture_and_quit() -> void:
@@ -196,7 +202,7 @@ func _capture_and_quit() -> void:
 	if img != null:
 		var target_path := ProjectSettings.globalize_path("res://screenshot_result.png")
 		img.save_png(target_path)
-	get_tree().quit()
+	# get_tree().quit()
 
 
 func _process(delta: float) -> void:
@@ -242,7 +248,7 @@ func _setup_environment() -> void:
 	env.glow_bloom = 0.05
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
 	env.glow_hdr_threshold = 1.2
-	env.ssao_enabled = true
+	env.ssao_enabled = false
 	env.ssao_radius = 1.4
 	env.ssao_intensity = 2.2
 	env.ssao_power = 1.5
@@ -741,6 +747,7 @@ func _build_decor() -> void:
 	_build_produce()
 	_build_cleaning_props()
 	_build_equipment()
+	_build_imported_props()
 	_build_sale_signs()
 	_build_entry_mat()
 	_build_aisle_signs()
@@ -1160,6 +1167,169 @@ func _place_scene(packed: PackedScene, pos: Vector3, yaw: float, s: float) -> No
 		if mi != null:
 			ProductShapes.shop_material(mi)
 	return inst
+
+
+# Purchased supermarket models (GLB). They arrive at wildly different scales and
+# origins, so every one is measured, scaled to a target height and dropped onto
+# the floor before it is placed. All of them are decor: no shelf slots, no
+# stocking logic, nothing the customers path around.
+func _build_imported_props() -> void:
+	const CART := "res://assets/models/props/shopping_cart.glb"
+	const REGISTER := "res://assets/models/props/cash_register.glb"
+	const FRIDGE := "res://assets/models/props/fridge_double.glb"
+	const GANDOLA := "res://assets/models/props/gandola_shelf.glb"
+	const PACK := "res://assets/models/props/shop_asset_pack.glb"
+
+	# Shopping carts beside the cart bay the procedural ones already occupy.
+	for spot in [
+		{"pos": Vector3(-1.95, 0.0, 14.6), "yaw": 0.22},
+		{"pos": Vector3(-6.75, 0.0, 14.5), "yaw": -0.14},
+		{"pos": Vector3(-3.35, 0.0, 14.72), "yaw": 0.05},
+	]:
+		_spawn_import(CART, spot["pos"], spot["yaw"], 1.02, true)
+
+	# A real register on every lane, on the belt in front of the scanner screen.
+	for i in 4:
+		var cx := -7.0 + i * 7.0
+		_spawn_import(REGISTER, Vector3(cx + 0.55, 1.06, 11.5), PI, 0.42, false)
+
+	# Chilled wall along the back of the store.
+	for x in [-19.6, -16.3, -13.0]:
+		_spawn_import(FRIDGE, Vector3(x, 0.0, -15.05), 0.0, 2.16, true)
+
+	# Two gondola islands, kept to two because the mesh is 360k triangles.
+	_spawn_import(GANDOLA, Vector3(-10.5, 0.0, 7.0), 0.0, 1.95, true)
+	_spawn_import(GANDOLA, Vector3(10.5, 0.0, 1.5), PI, 1.95, true)
+
+	# Retro shop pack: only the pieces that stand on their own are reused.
+	# One long tiled counter along the right wall with the old register on top,
+	# and the barter kiosk standing at the end of it.
+	var desk := _spawn_pack_part(PACK, "Table", Vector3(20.2, 0.0, -2.6), 0.0, 1.05, true)
+	if desk != null:
+		_spawn_pack_part(PACK, "ButtonCashRegister", Vector3(20.2, 1.04, -0.2), 0.0, 0.62, false)
+	_spawn_pack_part(PACK, "BarterMachine", Vector3(20.4, 0.0, 2.6), PI * 0.5, 1.85, true)
+
+
+func _spawn_import(path: String, pos: Vector3, yaw: float, target_height: float, solid: bool) -> Node3D:
+	var packed: PackedScene = ModelCatalog.scene(path)
+	if packed == null:
+		return null
+	var root := packed.instantiate() as Node3D
+	if root == null:
+		return null
+	add_child(root)
+	var box := _prop_aabb(root)
+	if box.size.y <= 0.001:
+		root.queue_free()
+		return null
+	root.rotation.y = yaw
+	root.scale = Vector3.ONE * (target_height / box.size.y)
+	_settle(root, pos)
+	_prop_finish(root, solid)
+	return root
+
+
+# Pulls one subtree out of a model pack (the pack ships several props in one
+# file) and drops it at pos. Everything else in the pack is thrown away.
+func _spawn_pack_part(path: String, part_name: String, pos: Vector3, yaw: float, target_height: float, solid: bool) -> Node3D:
+	var packed: PackedScene = ModelCatalog.scene(path)
+	if packed == null:
+		return null
+	var root := packed.instantiate() as Node3D
+	if root == null:
+		return null
+	add_child(root)
+	var part := root.find_child(part_name, true, false) as Node3D
+	if part == null:
+		root.queue_free()
+		return null
+	# The pack ships every prop in one file. queue_free only takes the siblings
+	# away at the end of the frame, so the bounds have to come from `part`
+	# alone or the whole pack ends up driving the scale.
+	_keep_only(root, part)
+	root.rotation.y = yaw
+	var box := _subtree_aabb(part)
+	if box.size.y <= 0.001:
+		root.queue_free()
+		return null
+	var s := target_height / box.size.y
+	root.scale = Vector3.ONE * s
+	root.position = pos - Vector3(
+		(box.position.x + box.size.x * 0.5) * s,
+		box.position.y * s,
+		(box.position.z + box.size.z * 0.5) * s)
+	_prop_finish(root, solid)
+	return root
+
+
+func _keep_only(root: Node, keep: Node) -> void:
+	var node := keep
+	while node != root and node != null:
+		var parent := node.get_parent()
+		for sibling in parent.get_children():
+			if sibling != node:
+				sibling.queue_free()
+		node = parent
+
+
+# Scale + yaw are already applied, so the bounds are measured in world space and
+# the model is shifted down to the floor and centred on pos in one go.
+func _settle(root: Node3D, pos: Vector3) -> void:
+	root.position = Vector3.ZERO
+	var box := _prop_aabb(root)
+	root.position = pos - Vector3(box.position.x + box.size.x * 0.5, box.position.y, box.position.z + box.size.z * 0.5)
+
+
+func _prop_finish(root: Node3D, solid: bool) -> void:
+	root.add_to_group("imported_prop")
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi != null:
+			ProductShapes.shop_material(mi)
+	if solid:
+		var box := _prop_aabb(root)
+		var body := StaticBody3D.new()
+		body.collision_layer = 1
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(box.size.x * 0.82, box.size.y, box.size.z * 0.82)
+		col.shape = shape
+		col.position = Vector3(0.0, box.size.y * 0.5, 0.0)
+		body.add_child(col)
+		body.position = Vector3(box.position.x + box.size.x * 0.5, box.position.y, box.position.z + box.size.z * 0.5)
+		if body.position.y < 0.05:
+			body.position.y = 0.0
+		add_child(body)
+
+
+func _prop_aabb(root: Node3D) -> AABB:
+	var out := AABB()
+	var first := true
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var b: AABB = mi.global_transform * mi.mesh.get_aabb()
+		out = b if first else out.merge(b)
+		first = false
+	return out
+
+
+# Same measurement, restricted to one subtree, for the multi-prop packs.
+func _subtree_aabb(root: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+	if root is MeshInstance3D:
+		meshes.append(root)
+	for node in meshes:
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var b: AABB = mi.global_transform * mi.mesh.get_aabb()
+		out = b if first else out.merge(b)
+		first = false
+	return out
 
 
 func _build_cleaning_props() -> void:
