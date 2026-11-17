@@ -31,6 +31,7 @@ func setup(main_ref: Node, rng: RandomNumberGenerator, has_cart: bool) -> void:
 	role = "customer"
 	_basket_mode = not has_cart
 	_cart_mode = has_cart
+	_setup_person_collision()
 	_build_body(false)
 	speed = rng.randf_range(0.82, 1.14)
 	if has_cart:
@@ -152,6 +153,10 @@ func _take_from_shelf() -> void:
 		basket.append(dept)
 		if _cart_mode:
 			add_cart_product(_shelf.last_taken_model, _rng)
+	if got <= 0:
+		main.on_empty_shelf(self, _shelf)
+		_leave_angry("empty")
+		return
 	Sfx.play("pickup", _rng.randf_range(0.85, 1.05), -14.0)
 	_next_stop()
 

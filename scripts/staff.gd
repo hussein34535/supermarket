@@ -2,8 +2,8 @@
 extends Person
 
 # Hired help. Cleaners sweep trash, stockers carry loose products back to their
-# shelf, and a cashier drives the express lane automatically. They are simple
-# Node3D actors steered by nav_step, not physics bodies.
+# shelf, and a cashier drives the express lane automatically. Staff share Person's
+# kinematic capsule and nav_step movement.
 const RIGGED_STAFF := preload("res://assets/models/props/worker_full.gltf")
 
 var main: Node = null
@@ -22,6 +22,7 @@ func setup(main_ref: Node, rng: RandomNumberGenerator, staff_kind: String) -> vo
 	kind = staff_kind
 	_rng = rng
 	role = "cashier" if kind == "cashier" else "waiting"
+	_setup_person_collision()
 	# The cashier stands still, so the sculpted worker can play its idle clip.
 	# Walking staff use the same model with a procedurally driven skeleton.
 	if not build_rigged(RIGGED_STAFF, kind == "cashier"):

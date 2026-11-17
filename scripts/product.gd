@@ -22,8 +22,8 @@ func setup(dept: int, color: Color, hero_override: Dictionary = {}) -> void:
 	base_color = color
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
-	var s := rng.randf_range(1.02, 1.28)
 	var box := Vector3(0.34, 0.4, 0.34)
+	var box_center := Vector3(0.0, box.y * 0.5, 0.0)
 	var hero: Dictionary = hero_override if not hero_override.is_empty() else _catalog_hero(dept, rng)
 	if not hero.is_empty():
 		var packed := ModelCatalog.scene(String(hero["path"]))
@@ -33,24 +33,23 @@ func setup(dept: int, color: Color, hero_override: Dictionary = {}) -> void:
 				_build_hero(inst, float(hero["scale"]))
 				var model_name := String(hero.get("name", ""))
 				var fitted := ProductShapes.upright_model(inst, model_name)
-				var fit_factor := 1.0
-				var longest := maxf(fitted.x, maxf(fitted.y, fitted.z))
-				if longest > 0.44:
-					fit_factor = 0.44 / longest
+				if fitted.length_squared() > 0.000001:
+					var dimensions := ProductShapes.standardized_size(fitted, model_name)
+					var fit_factor := dimensions.length() / maxf(fitted.length(), 0.001)
 					inst.scale *= fit_factor
-				var dimensions := fitted * fit_factor
-				box = Vector3(
-					clampf(dimensions.x, 0.10, 0.48),
-					clampf(dimensions.y, 0.08, 0.44),
-					clampf(dimensions.z, 0.10, 0.48))
-				var fitted_info := hero.duplicate()
-				fitted_info["scale"] = float(hero["scale"]) * fit_factor
-				fitted_info["height"] = box.y
-				fitted_info["w"] = box.x
-				fitted_info["d"] = box.z
-				model_info = fitted_info
+					inst.position *= fit_factor
+					box = dimensions
+					box_center = Vector3.ZERO
+					var fitted_info := hero.duplicate()
+					fitted_info["scale"] = float(hero.get("scale", 1.0)) * fit_factor
+					fitted_info["height"] = box.y
+					fitted_info["w"] = box.x
+					fitted_info["d"] = box.z
+					model_info = fitted_info
 	if _meshes.is_empty():
-		_meshes = ProductShapes.build(self, dept, color, rng, s)
+		_meshes = ProductShapes.build(self, dept, color, rng, 1.0)
+		box = ProductShapes.fallback_size(dept)
+		box_center = Vector3(0.0, box.y * 0.5, 0.0)
 	for mi in _meshes:
 		_original_materials[mi] = mi.material_override
 
@@ -59,7 +58,7 @@ func setup(dept: int, color: Color, hero_override: Dictionary = {}) -> void:
 	var box_shape := BoxShape3D.new()
 	box_shape.size = box
 	shape.shape = box_shape
-	shape.position = Vector3(0, box.y * 0.5, 0)
+	shape.position = box_center
 	add_child(shape)
 
 	rotation.y = rng.randf_range(0.0, TAU)

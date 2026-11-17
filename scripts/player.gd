@@ -149,7 +149,7 @@ var _scan_flash: float = 0.0
 
 func _ready() -> void:
 	collision_layer = 2
-	collision_mask = 1
+	collision_mask = 1 | 32
 	_base_cam_y = 1.55
 	_cam_height = _base_cam_y
 	_rng.randomize()

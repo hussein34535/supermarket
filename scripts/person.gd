@@ -1,5 +1,5 @@
 class_name Person
-extends Node3D
+extends CharacterBody3D
 
 const SKIN_TONES: Array[Color] = [
 	Color(0.98, 0.82, 0.70), Color(0.94, 0.76, 0.61), Color(0.88, 0.66, 0.50),
@@ -53,9 +53,11 @@ var _scan_t: float = 0.0
 var _look_t: float = 0.0
 var _cart_mode: bool = false
 var _basket_mode: bool = false
+var _person_collision: CollisionShape3D
 var _cart_root: Node3D
 var _cart_visual: Node3D
 var _cart_products: Node3D
+var _cart_item_bounds: Array[AABB] = []
 var _cart_item_count: int = 0
 var _cart_scale: float = 1.0
 var _cart_basket_floor: float = 0.0
@@ -83,6 +85,7 @@ var _ankle_r: Node3D
 func configure_customer(rng: RandomNumberGenerator, points: Array[Vector3], start_index: int, basket: bool, cart: bool = false) -> void:
 	role = "customer"
 	_rng = rng
+	_setup_person_collision()
 	path = points
 	_basket_mode = basket
 	_cart_mode = cart
@@ -106,6 +109,7 @@ func configure_customer(rng: RandomNumberGenerator, points: Array[Vector3], star
 func configure_static(rng: RandomNumberGenerator, pos: Vector3, face_y: float, cashier: bool, basket: bool) -> void:
 	role = "cashier" if cashier else "waiting"
 	_rng = rng
+	_setup_person_collision()
 	_basket_mode = basket
 	_build_body(cashier)
 	position = pos
@@ -128,38 +132,96 @@ func add_cart_product(hero: Dictionary, rng: RandomNumberGenerator) -> void:
 		return
 	_cart_products.add_child(inst)
 	inst.scale = Vector3.ONE * float(hero.get("scale", 1.0))
-	var dims := ProductShapes.upright_model(inst, String(hero.get("name", "")))
-	# Keep catalog proportions while packing a 3x3 footprint inside the wire basket.
-	var available_width := maxf(0.10, _cart_basket_half_width * 1.7)
-	var available_depth := maxf(0.10, absf(_cart_basket_front_z - _cart_basket_back_z) * 0.78)
-	var available_height := maxf(0.14, _cart_basket_rim - _cart_basket_floor)
-	var cell_width := available_width / 3.0
-	var cell_depth := available_depth / 3.0
-	var fit := minf(1.0, minf(
-		cell_width / maxf(dims.x, 0.01),
-		minf(available_height / maxf(dims.y, 0.01), cell_depth / maxf(dims.z, 0.01))))
+	var model_name := String(hero.get("name", ""))
+	var dims := ProductShapes.upright_model(inst, model_name)
+	if dims.length_squared() < 0.000001:
+		inst.queue_free()
+		return
+	# Keep the picked model's proportions, fit it to the basket's actual inner
+	# footprint, and place products on the floor or gently atop an earlier item.
+	var standardized := ProductShapes.standardized_size(dims, model_name)
+	var fit := standardized.length() / maxf(dims.length(), 0.001)
+	var half_width := _cart_basket_half_width - 0.008
+	var min_z := minf(_cart_basket_front_z, _cart_basket_back_z) + 0.008
+	var max_z := maxf(_cart_basket_front_z, _cart_basket_back_z) - 0.008
+	var inner_width := maxf(0.025, half_width * 2.0)
+	var inner_depth := maxf(0.025, max_z - min_z)
+	fit *= minf(1.0, minf(inner_width / maxf(standardized.x, 0.001), inner_depth / maxf(standardized.z, 0.001)))
 	inst.scale *= fit
 	inst.position *= fit
-	var column := _cart_item_count % 3
-	var depth_row := (_cart_item_count / 3) % 3
-	var layer := _cart_item_count / 9
-	var x := (float(column) - 1.0) * cell_width + rng.randf_range(-0.006, 0.006)
-	var z := lerpf(
-		_cart_basket_back_z - cell_depth * 0.5,
-		_cart_basket_front_z + cell_depth * 0.5,
-		float(depth_row) / 2.0) + rng.randf_range(-0.006, 0.006)
-	var y := float(layer) * available_height
-	inst.rotation.y = rng.randf_range(-0.12, 0.12)
+	inst.rotation.y = rng.randf_range(-0.10, 0.10)
 	var bounds := inst.transform * _mesh_bounds(inst)
+	var slot := _cart_item_count % 9
+	var column := slot % 3
+	var row := slot / 3
+	var desired_x := lerpf(-half_width + bounds.size.x * 0.5, half_width - bounds.size.x * 0.5, float(column) / 2.0)
+	var desired_z := lerpf(min_z + bounds.size.z * 0.5, max_z - bounds.size.z * 0.5, float(row) / 2.0)
+	var center_x := 0.0
+	var center_z := 0.0
+	var bottom_y := _cart_basket_floor + 0.006
+	var placed := false
+	for slot_index in 9:
+		var candidate_column := slot_index % 3
+		var candidate_row := slot_index / 3
+		var candidate_x := lerpf(-half_width + bounds.size.x * 0.5, half_width - bounds.size.x * 0.5, float(candidate_column) / 2.0)
+		var candidate_z := lerpf(min_z + bounds.size.z * 0.5, max_z - bounds.size.z * 0.5, float(candidate_row) / 2.0)
+		var overlaps := false
+		for occupied in _cart_item_bounds:
+			var overlaps_x := absf(candidate_x - (occupied.position.x + occupied.size.x * 0.5)) < (bounds.size.x + occupied.size.x) * 0.5 + 0.004
+			var overlaps_z := absf(candidate_z - (occupied.position.z + occupied.size.z * 0.5)) < (bounds.size.z + occupied.size.z) * 0.5 + 0.004
+			if overlaps_x and overlaps_z and occupied.end.y > _cart_basket_floor + 0.02:
+				overlaps = true
+				break
+		if not overlaps:
+			center_x = candidate_x
+			center_z = candidate_z
+			placed = true
+			break
+	if not placed:
+		center_x = desired_x
+		center_z = desired_z
+		var lowest_top := INF
+		for occupied in _cart_item_bounds:
+			if occupied.end.y < lowest_top:
+				lowest_top = occupied.end.y
+			center_x = occupied.position.x + occupied.size.x * 0.5
+			center_z = occupied.position.z + occupied.size.z * 0.5
+		bottom_y = maxf(bottom_y, lowest_top + 0.004)
+	var room_height := maxf(0.025, _cart_basket_rim - bottom_y - 0.008)
+	var height_fit := minf(1.0, room_height / maxf(bounds.size.y, 0.001))
+	inst.scale *= height_fit
+	inst.position *= height_fit
+	bounds = inst.transform * _mesh_bounds(inst)
+	center_x = clampf(center_x, -half_width + bounds.size.x * 0.5, half_width - bounds.size.x * 0.5)
+	center_z = clampf(center_z, min_z + bounds.size.z * 0.5, max_z - bounds.size.z * 0.5)
 	inst.position += Vector3(
-		x - bounds.position.x - bounds.size.x * 0.5,
-		y - bounds.position.y,
-		z - bounds.position.z - bounds.size.z * 0.5)
+		center_x - bounds.position.x - bounds.size.x * 0.5,
+		bottom_y - _cart_products.position.y - bounds.position.y,
+		center_z - bounds.position.z - bounds.size.z * 0.5)
+	bounds = inst.transform * _mesh_bounds(inst)
+	_cart_item_bounds.append(AABB(Vector3(bounds.position.x, bounds.position.y + _cart_products.position.y, bounds.position.z), bounds.size))
+	inst.set_meta("model_name", model_name)
 	for node in inst.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		ProductShapes.shop_material(mi)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_cart_item_count += 1
+
+
+func _setup_person_collision() -> void:
+	collision_layer = 32
+	collision_mask = 1 | 32
+	if _person_collision != null and is_instance_valid(_person_collision):
+		return
+	floor_snap_length = 0.12
+	floor_max_angle = deg_to_rad(50.0)
+	_person_collision = CollisionShape3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.19
+	capsule.height = 1.52
+	_person_collision.shape = capsule
+	_person_collision.position.y = capsule.height * 0.5
+	add_child(_person_collision)
 
 
 func _build_body(cashier: bool) -> void:
@@ -661,29 +723,36 @@ func _process(delta: float) -> void:
 		_update_walk(delta)
 	else:
 		_moving = false
+		velocity = Vector3.ZERO
 		_update_idle(delta)
 	_animate(delta)
+
+
+func _physics_process(_delta: float) -> void:
+	velocity.y = 0.0
+	move_and_slide()
 
 
 func _update_walk(delta: float) -> void:
 	if _wait > 0.0:
 		_wait -= delta
 		_moving = false
+		velocity = Vector3.ZERO
 		return
 	var target: Vector3 = path[_wp]
-	var to := target - position
+	var to := target - global_position
 	to.y = 0.0
 	if to.length() < 0.18:
 		_wp = (_wp + 1) % path.size()
 		_moving = false
+		velocity = Vector3.ZERO
 		if _rng.randf() < 0.42:
 			_wait = _rng.randf_range(0.6, 2.6)
 		return
 	_moving = true
-	var target_y := _face_y(to)
-	rotation.y = lerp_angle(rotation.y, target_y, minf(1.0, delta * 5.5))
-	position += to.normalized() * speed * delta
-	position.y = 0.0
+	var direction := _steered_direction(to.normalized())
+	rotation.y = lerp_angle(rotation.y, _face_y(direction), minf(1.0, delta * 5.5))
+	velocity = direction * speed
 	_walk_t += delta * speed * 7.2
 
 
@@ -693,21 +762,35 @@ func _update_idle(delta: float) -> void:
 		_scan_t = fmod(_scan_t + delta, 4.4)
 
 
-# Shared steering for customers and staff. They are pure Node3D actors (no physics
-# body), so a straight step toward the next waypoint is enough and cannot get the
-# store's collision geometry stuck.
+# Customers and staff share a kinematic capsule. Keep movement grounded and
+# steer around nearby people so tight queues do not deadlock against collisions.
 func nav_step(target: Vector3, delta: float, spd: float, stop_dist: float = 0.24) -> bool:
-	var to := target - position
+	var to := target - global_position
 	to.y = 0.0
 	if to.length() <= stop_dist:
 		_moving = false
+		velocity = Vector3.ZERO
 		return true
 	_moving = true
-	rotation.y = lerp_angle(rotation.y, _face_y(to), minf(1.0, delta * 6.5))
-	position += to.normalized() * spd * delta
-	position.y = 0.0
+	var direction := _steered_direction(to.normalized())
+	rotation.y = lerp_angle(rotation.y, _face_y(direction), minf(1.0, delta * 6.5))
+	velocity = direction * spd
 	_walk_t += delta * spd * 7.2
 	return false
+
+
+func _steered_direction(desired: Vector3) -> Vector3:
+	var avoidance := Vector3.ZERO
+	for i in get_slide_collision_count():
+		var collider := get_slide_collision(i).get_collider()
+		if collider is CharacterBody3D:
+			var away := global_position - (collider as Node3D).global_position
+			away.y = 0.0
+			if away.length_squared() > 0.0001:
+				avoidance += away.normalized()
+	if avoidance.length_squared() < 0.0001:
+		return desired
+	return (desired + avoidance.normalized() * 0.85).normalized()
 
 
 func nav_face(target: Vector3, delta: float) -> void:

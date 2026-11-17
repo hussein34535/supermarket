@@ -97,6 +97,63 @@ static func declared_dims(model_name: String) -> Vector3:
 	return _declared_dims.get(model_name, Vector3.ZERO)
 
 
+# Bring catalog items into a consistent readable range, while retaining their
+# authored proportions. The input is measured from the imported mesh (not its
+# possibly stale sizing metadata); each category has its own sensible bounds.
+static func standardized_size(measured: Vector3, model_name: String) -> Vector3:
+	var category := _model_category(model_name)
+	var target_height := 0.34
+	var max_extent := 0.48
+	match category:
+		"dairy":
+			target_height = 0.32
+			max_extent = 0.43
+		"produce":
+			target_height = 0.32
+			max_extent = 0.44
+		"drinks":
+			target_height = 0.35
+			max_extent = 0.43
+		"snacks", "pantry":
+			target_height = 0.32
+			max_extent = 0.43
+		"cleaning":
+			target_height = 0.38
+			max_extent = 0.48
+		"frozen":
+			target_height = 0.32
+			max_extent = 0.43
+	var longest := maxf(measured.x, maxf(measured.y, measured.z))
+	if longest <= 0.0001:
+		return Vector3.ZERO
+	var scale_factor := minf(target_height / maxf(measured.y, 0.0001), max_extent / longest)
+	# Apply one uniform factor only. Per-axis minimums make thin products swell
+	# unnaturally and desynchronise their rendered mesh from the collider bounds.
+	return measured * scale_factor
+
+
+static func fallback_size(department: int) -> Vector3:
+	match department:
+		0: return Vector3(0.28, 0.28, 0.28)
+		1: return Vector3(0.14, 0.25, 0.14)
+		2: return Vector3(0.14, 0.29, 0.14)
+		3: return Vector3(0.18, 0.25, 0.12)
+		4: return Vector3(0.18, 0.28, 0.14)
+		_: return Vector3(0.20, 0.22, 0.16)
+
+
+static func _model_category(model_name: String) -> String:
+	for dept in ModelCatalog.DECKS.keys():
+		for hero in ModelCatalog.DECKS[dept]:
+			if String(hero["name"]) == model_name:
+				var path := String(hero["path"])
+				var parts := path.split("/")
+				if parts.size() >= 2 and parts[parts.size() - 2] != "props":
+					return parts[parts.size() - 2]
+				return "produce" if model_name == "tomato_tray" else "cleaning"
+	return ""
+
+
 static func _rotated_size(size: Vector3, rot: Vector3) -> Vector3:
 	if not is_zero_approx(rot.x):
 		return Vector3(size.x, size.z, size.y)
