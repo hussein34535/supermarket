@@ -1128,23 +1128,93 @@ func _build_produce() -> void:
 	sign.position = Vector3(0, 2.02, -0.862)
 	display.add_child(sign)
 
-	# Three open timber trays: low front lips so the vegetables stay visible from
-	# the aisle, taller back boards to hold the heap, no green box in sight.
-	var crate_floor := ProductShapes._mat(Color(0.57, 0.38, 0.20), 0.0, 0.82)
-	var varieties: Array[Array] = [["lettuce", "broccoli", "cabbage"], ["carrots", "zucchini", "red_peppers"], ["potatoes", "red_onions", "green_grapes"]]
+	# Real produce crates: the imported fruit_case model, two rows of three, one
+	# variety per crate, heaped with nine pieces so each crate reads as full.
+	const PRODUCE_CASE := "res://assets/models/supermarket_pack/Fruits/Fruit Cases/fruit_case.glb"
+	var case_scene := ModelCatalog.scene(PRODUCE_CASE)
+	var case_scale := 0.92 / 0.566
+	# The imported case is deep; squash it a little so the vegetables show above
+	# the rim instead of hiding behind a yellow wall.
+	var case_flat := 0.50
+	var case_lift := 0.286 * case_scale * case_flat
+	var varieties: Array[Array] = [["lettuce", "broccoli", "cabbage"], ["red_peppers", "red_onions", "potatoes"], ["green_grapes", "red_grapes", "carrots"]]
 	var names: PackedStringArray = ["ورقيات", "خضار يومية", "طازج اليوم"]
+	# Target size per variety, in metres, so a potato never reads as big as a
+	# cabbage. Anything not listed keeps the default.
+	var item_sizes := {
+		"lettuce": 0.30, "cabbage": 0.30, "broccoli": 0.27,
+		"red_peppers": 0.21, "red_onions": 0.17, "potatoes": 0.17,
+		"carrots": 0.22, "zucchini": 0.26,
+		"green_grapes": 0.19, "red_grapes": 0.19,
+	}
+
 	var produce_deck: Array = ModelCatalog.DECKS[0]
+	for case_i in 6:
+		var variety := case_i % 3
+		var row := case_i / 3
+		var col := case_i % 3
+		var holder := Node3D.new()
+		holder.name = "ProduceCase_%d" % case_i
+		holder.position = Vector3(-1.02 + float(col) * 1.02, 0.845, 0.40 - float(row) * 0.60)
+		display.add_child(holder)
+		if case_scene != null:
+			var crate := case_scene.instantiate() as Node3D
+			if crate != null:
+				crate.scale = Vector3(case_scale, case_scale * case_flat, case_scale)
+				crate.position.y = case_lift
+				holder.add_child(crate)
+
+		# Flat packs first, tall produce after: each row then mixes one low piece
+		# with two tall ones instead of repeating the same pair nine times.
+		var entries: Array = []
+		for hero in produce_deck:
+			if String(hero.get("name", "")) in varieties[variety] and ProductShapes.is_flat_product(String(hero["name"])):
+				entries.append(hero)
+		for hero in produce_deck:
+			if String(hero.get("name", "")) in varieties[variety] and not ProductShapes.is_flat_product(String(hero["name"])):
+				entries.append(hero)
+		# Nine pieces per crate, a 3 x 3 heap: enough to bury the yellow floor
+		# and still show over the rim from the aisle.
+		for slot in 9:
+			if entries.is_empty():
+				continue
+			var hero: Dictionary = entries[slot % entries.size()]
+			var packed := ModelCatalog.scene(String(hero["path"]))
+			if packed == null:
+				continue
+			var item := packed.instantiate() as Node3D
+			if item == null:
+				continue
+			holder.add_child(item)
+			item.scale = Vector3.ONE * float(hero["scale"])
+			var model_name := String(hero.get("name", ""))
+			var dims := ProductShapes.upright_model(item, model_name)
+			var longest := maxf(dims.x, maxf(dims.y, dims.z))
+			var flat := ProductShapes.is_flat_product(model_name)
+			var max_item_size: float = float(item_sizes.get(model_name, 0.24))
+			var fit_factor := minf(1.0, max_item_size / maxf(longest, 0.01))
+			item.scale *= fit_factor
+			item.position *= fit_factor
+			item.position += Vector3(
+				-0.28 + float(slot % 3) * 0.28 + rng.randf_range(-0.02, 0.02),
+				(0.05 if flat else 0.045) + rng.randf_range(0.0, 0.03) + (0.03 if slot >= 6 else 0.0),
+				-0.15 + float(slot / 3) * 0.15 + rng.randf_range(-0.015, 0.015))
+			# Add the tilt: assigning rotation.x/z here would wipe out the
+			# upright rotation upright_model just applied.
+			item.rotation.y = rng.randf_range(-0.55, 0.55)
+			item.rotation.x += rng.randf_range(-0.08, 0.08)
+			item.rotation.z += rng.randf_range(-0.08, 0.08)
+			for node in item.find_children("*", "MeshInstance3D", true, false):
+				var mi := node as MeshInstance3D
+				if mi != null:
+					ProductShapes.shop_material(mi)
+					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			if item is MeshInstance3D:
+				ProductShapes.shop_material(item as MeshInstance3D)
+				(item as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	# Department labels sit on the green fascia under each column of crates.
 	for i in 3:
-		var tray := Node3D.new()
-		tray.name = "ProduceTray_%d" % i
-		tray.position = Vector3(-1.02 + float(i) * 1.02, 0.845, 0.10)
-		display.add_child(tray)
-		_add_display_box(tray, Vector3(0.94, 0.06, 1.34), Vector3(0, 0.03, 0), crate_floor)
-		_add_display_box(tray, Vector3(0.99, 0.11, 0.06), Vector3(0, 0.065, 0.67), timber)
-		_add_display_box(tray, Vector3(0.99, 0.03, 0.075), Vector3(0, 0.135, 0.675), timber_light)
-		_add_display_box(tray, Vector3(0.99, 0.30, 0.06), Vector3(0, 0.16, -0.67), timber)
-		for side in [-1.0, 1.0]:
-			_add_display_box(tray, Vector3(0.06, 0.22, 1.36), Vector3(side * 0.47, 0.11, 0), timber)
 		var crate_label := Label3D.new()
 		crate_label.text = names[i]
 		crate_label.font = ProductShapes.sign_font()
@@ -1152,48 +1222,8 @@ func _build_produce() -> void:
 		crate_label.pixel_size = 0.0030
 		crate_label.modulate = Color(0.97, 0.99, 0.90)
 		crate_label.outline_size = 4
-		crate_label.position = Vector3(0, 0.075, 0.706)
-		tray.add_child(crate_label)
-
-		var entries: Array = []
-		for hero in produce_deck:
-			if String(hero.get("name", "")) in varieties[i]:
-				entries.append(hero)
-		for row in 4:
-			for col in 3:
-				if entries.is_empty():
-					continue
-				var hero: Dictionary = entries[(row * 3 + col) % entries.size()]
-				var packed := ModelCatalog.scene(String(hero["path"]))
-				if packed == null:
-					continue
-				var item := packed.instantiate() as Node3D
-				if item == null:
-					continue
-				tray.add_child(item)
-				item.scale = Vector3.ONE * float(hero["scale"])
-				var model_name := String(hero.get("name", ""))
-				var dims := ProductShapes.upright_model(item, model_name)
-				var longest := maxf(dims.x, maxf(dims.y, dims.z))
-				var max_item_size := 0.24 if ProductShapes.is_flat_product(model_name) else 0.28
-				var fit_factor := minf(1.0, max_item_size / maxf(longest, 0.01))
-				item.scale *= fit_factor
-				item.position *= fit_factor
-				item.position += Vector3(
-					-0.30 + col * 0.30,
-					0.06 + rng.randf_range(0.0, 0.035) + (0.03 if row > 1 else 0.0),
-					-0.46 + row * 0.31)
-				item.rotation.y = rng.randf_range(-0.55, 0.55)
-				item.rotation.x = rng.randf_range(-0.10, 0.10)
-				item.rotation.z = rng.randf_range(-0.10, 0.10)
-				for node in item.find_children("*", "MeshInstance3D", true, false):
-					var mi := node as MeshInstance3D
-					if mi != null:
-						ProductShapes.shop_material(mi)
-						mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				if item is MeshInstance3D:
-					ProductShapes.shop_material(item as MeshInstance3D)
-					(item as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		crate_label.position = Vector3(-1.02 + float(i) * 1.02, 0.795, 1.075)
+		display.add_child(crate_label)
 
 
 func _add_display_box(parent: Node3D, size: Vector3, pos: Vector3, material: Material) -> MeshInstance3D:
