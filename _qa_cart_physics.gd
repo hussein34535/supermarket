@@ -39,7 +39,7 @@ func _run() -> void:
 	assert(item.global_position.distance_to(item_before + Vector3(1.0, 0.0, 0.0)) < 0.02, "cart product did not follow its shopper")
 	print("CART_OK items=%d follow_delta=%.3f" % [cart_items, item.global_position.x - item_before.x])
 
-	# A second stationary shopper is a physical obstacle to the first one.
+	# A crowded pair should make progress without hard character-character contacts.
 	shopper.set_process(false)
 	shopper.global_position = Vector3(0.0, 0.0, 0.0)
 	shopper.velocity = Vector3.ZERO
@@ -47,15 +47,17 @@ func _run() -> void:
 	game.people_root.add_child(blocker)
 	blocker.setup(game, rng, false)
 	blocker.set_process(false)
-	blocker.global_position = Vector3(0.72, 0.0, 0.0)
+	blocker.global_position = Vector3(0.0, 0.0, 0.34)
 	blocker.velocity = Vector3.ZERO
+	assert((shopper.collision_mask & 32) == 0, "person mask still enables hard person-to-person collision")
 	await get_tree().physics_frame
-	shopper.velocity = Vector3(2.0, 0.0, 0.0)
-	for i in 30:
+	for i in 150:
+		shopper.nav_step(Vector3(2.0, 0.0, 0.0), 1.0 / 60.0, 1.0)
+		blocker.nav_step(Vector3(2.0, 0.0, 0.34), 1.0 / 60.0, 1.0)
 		await get_tree().physics_frame
 	var separation := shopper.global_position.distance_to(blocker.global_position)
-	assert(separation >= 0.36, "people capsules passed through each other: %.3f" % separation)
-	print("PEOPLE_COLLISION_OK separation=%.3f" % separation)
+	assert(shopper.global_position.x > 1.5 and blocker.global_position.x > 1.5, "crowded walkers got stuck: x=%.3f, %.3f" % [shopper.global_position.x, blocker.global_position.x])
+	print("CROWD_FLOW_OK separation=%.3f progress=%.3f,%.3f" % [separation, shopper.global_position.x, blocker.global_position.x])
 
 	# The store's west wall is a layer-1 static collider.
 	shopper.global_position = Vector3(21.35, 0.0, 0.0)

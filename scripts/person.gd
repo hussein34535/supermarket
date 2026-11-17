@@ -210,7 +210,10 @@ func add_cart_product(hero: Dictionary, rng: RandomNumberGenerator) -> void:
 
 func _setup_person_collision() -> void:
 	collision_layer = 32
-	collision_mask = 1 | 32
+	# Person-to-person contact is handled by steering below. Hard body collision
+	# makes route followers deadlock at narrow aisles and checkout queues.
+	collision_mask = 1
+	add_to_group("people")
 	if _person_collision != null and is_instance_valid(_person_collision):
 		return
 	floor_snap_length = 0.12
@@ -731,6 +734,10 @@ func _process(delta: float) -> void:
 func _physics_process(_delta: float) -> void:
 	velocity.y = 0.0
 	move_and_slide()
+	# Waypoints are shared floor-space coordinates. Keep collision resolution
+	# from nudging actors vertically on ramps or stacked geometry.
+	if absf(position.y) < 0.08:
+		position.y = 0.0
 
 
 func _update_walk(delta: float) -> void:
@@ -750,7 +757,7 @@ func _update_walk(delta: float) -> void:
 			_wait = _rng.randf_range(0.6, 2.6)
 		return
 	_moving = true
-	var direction := _steered_direction(to.normalized())
+	var direction := _steered_direction(to.normalized(), speed)
 	rotation.y = lerp_angle(rotation.y, _face_y(direction), minf(1.0, delta * 5.5))
 	velocity = direction * speed
 	_walk_t += delta * speed * 7.2
@@ -772,25 +779,48 @@ func nav_step(target: Vector3, delta: float, spd: float, stop_dist: float = 0.24
 		velocity = Vector3.ZERO
 		return true
 	_moving = true
-	var direction := _steered_direction(to.normalized())
+	var direction := _steered_direction(to.normalized(), spd)
 	rotation.y = lerp_angle(rotation.y, _face_y(direction), minf(1.0, delta * 6.5))
 	velocity = direction * spd
 	_walk_t += delta * spd * 7.2
 	return false
 
 
-func _steered_direction(desired: Vector3) -> Vector3:
+func _steered_direction(desired: Vector3, move_speed: float) -> Vector3:
+	# Soft local avoidance: actors remain kinematic against store geometry, while
+	# keeping enough personal space that queues do not shove their route followers
+	# into a deadlock. No character-character physics contacts are required.
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsShapeQueryParameters3D.new()
+	var probe := SphereShape3D.new()
+	probe.radius = 0.38
+	query.shape = probe
+	query.transform = Transform3D(Basis.IDENTITY, global_position + Vector3.UP * 0.78)
+	query.collision_mask = 32
+	query.exclude = [get_rid()]
 	var avoidance := Vector3.ZERO
-	for i in get_slide_collision_count():
-		var collider := get_slide_collision(i).get_collider()
-		if collider is CharacterBody3D:
-			var away := global_position - (collider as Node3D).global_position
-			away.y = 0.0
-			if away.length_squared() > 0.0001:
-				avoidance += away.normalized()
+	for hit in space.intersect_shape(query, 12):
+		var collider: Object = hit.get("collider")
+		if not collider is Person or collider == self:
+			continue
+		var offset := global_position - (collider as Node3D).global_position
+		offset.y = 0.0
+		var distance := offset.length()
+		if distance > 0.001 and distance < 0.76:
+			var weight := (0.76 - distance) / 0.76
+			avoidance += offset / distance * weight
 	if avoidance.length_squared() < 0.0001:
 		return desired
-	return (desired + avoidance.normalized() * 0.85).normalized()
+	var strength := clampf(avoidance.length() * 1.8, 0.0, 0.85)
+	var direction := desired + avoidance.normalized() * strength
+	if direction.length_squared() < 0.0001:
+		return desired
+	# Avoidance must never make a moving actor go backwards or stop making progress.
+	if direction.normalized().dot(desired) < 0.25:
+		direction = desired + avoidance.slide(desired).normalized() * minf(strength, 0.55)
+	if direction.length_squared() < 0.0001:
+		return desired
+	return direction.normalized()
 
 
 func nav_face(target: Vector3, delta: float) -> void:
