@@ -151,9 +151,8 @@ func _bounds_in_parent(root: Node3D) -> AABB:
 
 
 func _build_shelf_model(holder: Node3D, rng: RandomNumberGenerator, model_info: Dictionary = {}) -> void:
-	var hero: Dictionary = model_info if not model_info.is_empty() else ModelCatalog.pick(department)
+	var hero: Dictionary = model_info
 	if hero.is_empty():
-		ProductShapes.build(holder, department, dept_color, rng, 0.42)
 		return
 	var packed := ModelCatalog.scene(String(hero["path"]))
 	if packed == null:

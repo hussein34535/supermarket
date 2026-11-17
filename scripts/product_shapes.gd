@@ -8,6 +8,7 @@ const FLAT_CATALOG_PRODUCTS: Array[String] = [
 
 static var _mat_cache: Dictionary = {}
 static var _shop_mat_cache: Dictionary = {}
+static var _declared_dims: Dictionary = {}
 static var _sign_font: Font
 
 
@@ -48,18 +49,68 @@ static func upright_model(inst: Node3D, model_name: String = "") -> Vector3:
 	var bounds := _model_bounds_in_parent(inst, parent)
 	if bounds.size.length_squared() < 0.000001:
 		return Vector3.ZERO
-	var shallow_product := is_flat_product(model_name)
-	if not shallow_product:
-		if bounds.size.z > bounds.size.x and bounds.size.z > bounds.size.y:
-			inst.rotation.x = PI * 0.5
-		elif bounds.size.x > bounds.size.y:
-			inst.rotation.z = -PI * 0.5
+	_choose_up_axis(inst, bounds.size, model_name)
 	bounds = _model_bounds_in_parent(inst, parent)
 	inst.position -= Vector3(
 		bounds.position.x + bounds.size.x * 0.5,
 		bounds.position.y,
 		bounds.position.z + bounds.size.z * 0.5)
 	return bounds.size
+
+
+# The catalog records the height/w/d every model is meant to end up with, so the
+# up axis is picked by matching those numbers. The old rule stood the longest
+# axis upright, which put wide multipacks and flat cheese boxes on their ends.
+static func _choose_up_axis(inst: Node3D, size: Vector3, model_name: String) -> void:
+	var declared := declared_dims(model_name)
+	if declared == Vector3.ZERO:
+		if size.z > size.x and size.z > size.y:
+			inst.rotation.x = PI * 0.5
+		elif size.x > size.y:
+			inst.rotation.z = -PI * 0.5
+		return
+	var candidates: Array[Vector3] = [
+		Vector3.ZERO,
+		Vector3(PI * 0.5, 0.0, 0.0),
+		Vector3(-PI * 0.5, 0.0, 0.0),
+		Vector3(0.0, 0.0, PI * 0.5),
+		Vector3(0.0, 0.0, -PI * 0.5),
+	]
+	var best := INF
+	var best_rot := Vector3.ZERO
+	for rot in candidates:
+		var score := _axis_score(_rotated_size(size, rot), declared)
+		if score < best - 0.0001:
+			best = score
+			best_rot = rot
+	inst.rotation = Vector3(best_rot.x, inst.rotation.y, best_rot.z)
+
+
+# Declared size of a catalog model as (height, width, depth); zero when the name
+# is not in the catalog.
+static func declared_dims(model_name: String) -> Vector3:
+	if _declared_dims.is_empty():
+		for dept in ModelCatalog.DECKS.keys():
+			for hero in ModelCatalog.DECKS[dept]:
+				_declared_dims[String(hero["name"])] = Vector3(
+					float(hero["height"]), float(hero["w"]), float(hero["d"]))
+	return _declared_dims.get(model_name, Vector3.ZERO)
+
+
+static func _rotated_size(size: Vector3, rot: Vector3) -> Vector3:
+	if not is_zero_approx(rot.x):
+		return Vector3(size.x, size.z, size.y)
+	if not is_zero_approx(rot.z):
+		return Vector3(size.y, size.x, size.z)
+	return size
+
+
+static func _axis_score(size: Vector3, declared: Vector3) -> float:
+	var err_y := absf(size.y - declared.x) / maxf(declared.x, 0.001)
+	var straight := absf(size.x - declared.y) + absf(size.z - declared.z)
+	var swapped := absf(size.x - declared.z) + absf(size.z - declared.y)
+	var err_xz := minf(straight, swapped) / maxf(declared.y + declared.z, 0.001)
+	return err_y + err_xz
 
 
 static func _model_bounds_in_parent(inst: Node3D, parent: Node3D) -> AABB:

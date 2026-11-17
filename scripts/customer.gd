@@ -150,6 +150,8 @@ func _take_from_shelf() -> void:
 		if dept < 0:
 			break
 		basket.append(dept)
+		if _cart_mode:
+			add_cart_product(_shelf.last_taken_model, _rng)
 	Sfx.play("pickup", _rng.randf_range(0.85, 1.05), -14.0)
 	_next_stop()
 

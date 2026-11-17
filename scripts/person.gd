@@ -53,6 +53,16 @@ var _scan_t: float = 0.0
 var _look_t: float = 0.0
 var _cart_mode: bool = false
 var _basket_mode: bool = false
+var _cart_root: Node3D
+var _cart_visual: Node3D
+var _cart_products: Node3D
+var _cart_item_count: int = 0
+var _cart_scale: float = 1.0
+var _cart_basket_floor: float = 0.0
+var _cart_basket_rim: float = 0.0
+var _cart_basket_front_z: float = 0.0
+var _cart_basket_back_z: float = 0.0
+var _cart_basket_half_width: float = 0.0
 
 var _body: Node3D
 var _head_pivot: Node3D
@@ -105,6 +115,51 @@ func configure_static(rng: RandomNumberGenerator, pos: Vector3, face_y: float, c
 	_scan_t = rng.randf_range(0.0, 4.0)
 	if basket:
 		_add_basket(rng)
+
+
+func add_cart_product(hero: Dictionary, rng: RandomNumberGenerator) -> void:
+	if not _cart_mode or _cart_products == null or hero.is_empty():
+		return
+	var packed := ModelCatalog.scene(String(hero.get("path", "")))
+	if packed == null:
+		return
+	var inst := packed.instantiate() as Node3D
+	if inst == null:
+		return
+	_cart_products.add_child(inst)
+	inst.scale = Vector3.ONE * float(hero.get("scale", 1.0))
+	var dims := ProductShapes.upright_model(inst, String(hero.get("name", "")))
+	# Keep catalog proportions while packing a 3x3 footprint inside the wire basket.
+	var available_width := maxf(0.10, _cart_basket_half_width * 1.7)
+	var available_depth := maxf(0.10, absf(_cart_basket_front_z - _cart_basket_back_z) * 0.78)
+	var available_height := maxf(0.14, _cart_basket_rim - _cart_basket_floor)
+	var cell_width := available_width / 3.0
+	var cell_depth := available_depth / 3.0
+	var fit := minf(1.0, minf(
+		cell_width / maxf(dims.x, 0.01),
+		minf(available_height / maxf(dims.y, 0.01), cell_depth / maxf(dims.z, 0.01))))
+	inst.scale *= fit
+	inst.position *= fit
+	var column := _cart_item_count % 3
+	var depth_row := (_cart_item_count / 3) % 3
+	var layer := _cart_item_count / 9
+	var x := (float(column) - 1.0) * cell_width + rng.randf_range(-0.006, 0.006)
+	var z := lerpf(
+		_cart_basket_back_z - cell_depth * 0.5,
+		_cart_basket_front_z + cell_depth * 0.5,
+		float(depth_row) / 2.0) + rng.randf_range(-0.006, 0.006)
+	var y := float(layer) * available_height
+	inst.rotation.y = rng.randf_range(-0.12, 0.12)
+	var bounds := inst.transform * _mesh_bounds(inst)
+	inst.position += Vector3(
+		x - bounds.position.x - bounds.size.x * 0.5,
+		y - bounds.position.y,
+		z - bounds.position.z - bounds.size.z * 0.5)
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		ProductShapes.shop_material(mi)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_cart_item_count += 1
 
 
 func _build_body(cashier: bool) -> void:
@@ -418,34 +473,138 @@ func _add_basket(rng: RandomNumberGenerator) -> void:
 
 
 func _add_cart(rng: RandomNumberGenerator) -> void:
-	var steel := ProductShapes._mat(Color(0.55, 0.58, 0.63), 0.78, 0.3)
+	# Use the same imported shopping-cart asset shown around the store. Its GLB is
+	# authored about 4x smaller than life, with the handle at local -Z.
+	var packed := ModelCatalog.scene("res://assets/models/props/shopping_cart.glb")
+	if packed == null:
+		_add_simple_cart(rng)
+		return
+	var visual := packed.instantiate() as Node3D
+	if visual == null:
+		_add_simple_cart(rng)
+		return
+	var cart_box := _cart_bounds(visual)
+	if cart_box.size.y <= 0.001:
+		visual.queue_free()
+		_add_simple_cart(rng)
+		return
+	_cart_scale = 0.94 / cart_box.size.y
+	_cart_root = Node3D.new()
+	_cart_root.name = "ShoppingCart"
+	# The source handle is around z=-0.056; the root turns 180° so its handled end
+	# faces the shopper and the basket extends forward.
+	_cart_root.rotation.y = PI
+	_cart_root.position = Vector3(0.0, 0.0, 0.0)
+	add_child(_cart_root)
+	visual.scale = Vector3.ONE * _cart_scale
+	visual.position = Vector3(
+		-cart_box.get_center().x * _cart_scale,
+		-cart_box.position.y * _cart_scale,
+		-cart_box.get_center().z * _cart_scale)
+	_cart_root.add_child(visual)
+	_cart_visual = visual
+	for node in visual.find_children("*", "MeshInstance3D", true, false):
+		ProductShapes.shop_material(node as MeshInstance3D)
+		(node as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	# Source mesh inspection: the basket floor wire sits at y~=0.075 and the top
+	# rail (the narrowest opening) at y~=0.146, spanning x=+-0.051 and
+	# z=-0.025..0.077. Items are packed inside the rail's footprint so nothing
+	# pokes through the wire; the source z axis is mirrored by the half turn.
+	_cart_basket_floor = _cart_local_y(0.075)
+	_cart_basket_rim = _cart_local_y(0.146)
+	_cart_basket_half_width = 0.052 * _cart_scale
+	_cart_basket_back_z = _cart_local_z(0.077)
+	_cart_basket_front_z = _cart_local_z(-0.025)
+	_cart_products = Node3D.new()
+	_cart_products.name = "CartProducts"
+	_cart_products.position = Vector3(0.0, _cart_basket_floor + 0.004, 0.0)
+	_cart_root.add_child(_cart_products)
+	_align_cart_to_hands()
+
+
+# Slides the cart so its handle lands where both hands reach. The offset is
+# measured in cart-root space instead of assuming a fixed distance, so the grip
+# stays in the palms whatever the asset's pivot happens to be.
+func _align_cart_to_hands() -> void:
+	if _cart_root == null or _cart_visual == null:
+		return
+	var handle_local_z := _cart_local_z(-0.056)
+	var handle_local_x := -_cart_visual.position.x
+	_cart_root.position = Vector3(
+		-handle_local_x,
+		0.0,
+		-0.30 - handle_local_z)
+
+
+# The instantiated cart is scaled and shifted, then the root is turned PI. These
+# convert a point on the raw mesh into the cart root's own coordinates.
+func _cart_local_y(source_y: float) -> float:
+	return source_y * _cart_scale + _cart_visual.position.y
+
+
+func _cart_local_z(source_z: float) -> float:
+	return -(source_z * _cart_scale + _cart_visual.position.z)
+
+
+func _cart_bounds(root: Node3D) -> AABB:
+	return _mesh_bounds(root)
+
+
+func _mesh_bounds(root: Node3D) -> AABB:
+	var bounds := AABB()
+	var first := true
+	var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+	if root is MeshInstance3D:
+		meshes.append(root)
+	for node in meshes:
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var relative := Transform3D.IDENTITY
+		var current := mi as Node3D
+		while current != null and current != root:
+			relative = current.transform * relative
+			current = current.get_parent() as Node3D
+		if current != root:
+			continue
+		var box: AABB = relative * mi.mesh.get_aabb()
+		bounds = box if first else bounds.merge(box)
+		first = false
+	return bounds
+
+
+func _add_simple_cart(rng: RandomNumberGenerator) -> void:
+	# Low-poly fallback in the same forward orientation as the imported cart.
+	var steel := ProductShapes._mat(Color(0.55, 0.58, 0.63), 0.65, 0.38)
 	var dark := ProductShapes._mat(Color(0.07, 0.07, 0.08), 0.1, 0.56)
 	var handle_mat := ProductShapes._mat(Color(0.68, 0.12, 0.10) if rng.randf() < 0.5 else Color(0.10, 0.30, 0.50), 0.0, 0.45)
 	var holder := Node3D.new()
-	holder.position = Vector3(0, 0, -0.04)
+	holder.position = Vector3(0.0, 0.0, -0.48)
+	holder.rotation.y = PI
 	add_child(holder)
 
-	var basket_w := 0.52
-	var basket_d := 0.62
-	var basket_z := -0.60
+	var w := 0.52
+	var d := 0.62
+	var basket_z := 0.0
 	var floor_y := 0.38
 	var top_y := 0.66
-	_add_box(holder, Vector3(basket_w, 0.018, basket_d), Vector3(0, floor_y, basket_z), steel)
+	_add_box(holder, Vector3(w, 0.018, d), Vector3(0, floor_y, basket_z), steel)
 	for side in [-1.0, 1.0]:
-		var x: float = side * basket_w * 0.5
+		var x: float = side * w * 0.5
 		for i in 4:
-			_add_box(holder, Vector3(0.016, 0.016, basket_d), Vector3(x, floor_y + 0.04 + i * 0.08, basket_z), steel)
+			_add_box(holder, Vector3(0.016, 0.016, d), Vector3(x, floor_y + 0.04 + i * 0.08, basket_z), steel)
 		for i in 9:
-			_add_box(holder, Vector3(0.016, top_y - floor_y, 0.016), Vector3(x, (top_y + floor_y) * 0.5, basket_z - basket_d * 0.5 + i * basket_d / 8.0), steel)
+			_add_box(holder, Vector3(0.016, top_y - floor_y, 0.016), Vector3(x, (top_y + floor_y) * 0.5, basket_z - d * 0.5 + i * d / 8.0), steel)
 		for i in 4:
-			_add_box(holder, Vector3(basket_w * 0.72, 0.016, 0.016), Vector3(0, floor_y + 0.04 + i * 0.08, basket_z + side * basket_d * 0.5), steel)
+			_add_box(holder, Vector3(w * 0.72, 0.016, 0.016), Vector3(0, floor_y + 0.04 + i * 0.08, basket_z + side * d * 0.5), steel)
 		for i in 5:
-			_add_box(holder, Vector3(0.016, top_y - floor_y, 0.016), Vector3(-basket_w * 0.36 + i * basket_w * 0.18, (top_y + floor_y) * 0.5, basket_z + side * basket_d * 0.5), steel)
-		_add_box(holder, Vector3(0.026, 0.026, basket_d + 0.02), Vector3(x, top_y, basket_z), handle_mat)
-	_add_box(holder, Vector3(basket_w + 0.02, 0.026, 0.026), Vector3(0, top_y, basket_z - basket_d * 0.5), handle_mat)
-	_add_box(holder, Vector3(basket_w + 0.02, 0.026, 0.026), Vector3(0, top_y, basket_z + basket_d * 0.5), handle_mat)
-	_add_box(holder, Vector3(0.36, 0.025, 0.16), Vector3(0, 0.57, basket_z + 0.20), handle_mat)
-	_add_box(holder, Vector3(0.32, 0.018, 0.14), Vector3(0, 0.58, basket_z + 0.20), dark)
+			_add_box(holder, Vector3(0.016, top_y - floor_y, 0.016), Vector3(-w * 0.36 + i * w * 0.18, (top_y + floor_y) * 0.5, basket_z + side * d * 0.5), steel)
+		_add_box(holder, Vector3(0.026, 0.026, d + 0.02), Vector3(x, top_y, basket_z), handle_mat)
+	_add_box(holder, Vector3(w + 0.02, 0.026, 0.026), Vector3(0, top_y, basket_z - d * 0.5), handle_mat)
+	_add_box(holder, Vector3(w + 0.02, 0.026, 0.026), Vector3(0, top_y, basket_z + d * 0.5), handle_mat)
+	_add_box(holder, Vector3(0.36, 0.025, 0.16), Vector3(0, 0.57, -0.20), handle_mat)
+	_add_box(holder, Vector3(0.32, 0.018, 0.14), Vector3(0, 0.58, -0.20), dark)
 
 	for side in [-1.0, 1.0]:
 		for front in [-1.0, 1.0]:
@@ -468,19 +627,18 @@ func _add_cart(rng: RandomNumberGenerator) -> void:
 	_add_box(holder, Vector3(0.48, 0.018, 0.03), Vector3(0, 0.20, basket_z - 0.27), steel)
 
 	for side in [-1.0, 1.0]:
-		_add_box(holder, Vector3(0.022, 0.21, 0.022), Vector3(side * 0.24, 0.755, basket_z + 0.36), steel)
-	_add_box(holder, Vector3(0.56, 0.032, 0.032), Vector3(0, 0.86, basket_z + 0.36), handle_mat)
-	_add_box(holder, Vector3(0.57, 0.028, 0.044), Vector3(0, 0.875, basket_z + 0.36), dark)
+		_add_box(holder, Vector3(0.022, 0.21, 0.022), Vector3(side * 0.24, 0.755, -0.36), steel)
+	_add_box(holder, Vector3(0.56, 0.032, 0.032), Vector3(0, 0.86, -0.36), handle_mat)
+	_add_box(holder, Vector3(0.57, 0.028, 0.044), Vector3(0, 0.875, -0.36), dark)
 
-	var colors: Array[Color] = [Color(0.88, 0.20, 0.16), Color(0.95, 0.64, 0.12), Color(0.30, 0.64, 0.24), Color(0.92, 0.86, 0.44), Color(0.52, 0.30, 0.18), Color(0.20, 0.45, 0.72)]
-	for i in 6:
-		var p := Vector3(rng.randf_range(-0.18, 0.18), 0.46 + rng.randf_range(0.0, 0.10), basket_z + rng.randf_range(-0.18, 0.18))
-		if rng.randf() < 0.5:
-			var item := _add_box(holder, Vector3(rng.randf_range(0.07, 0.13), rng.randf_range(0.10, 0.18), rng.randf_range(0.05, 0.10)), p, ProductShapes._mat(colors[rng.randi_range(0, 5)], 0.0, 0.45))
-			item.rotation.y = rng.randf_range(-0.4, 0.4)
-			item.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		else:
-			_add_sphere(holder, rng.randf_range(0.04, 0.06), p, ProductShapes._mat(colors[rng.randi_range(0, 5)], 0.0, 0.4), 8, 6)
+	_cart_products = Node3D.new()
+	_cart_products.position = Vector3(0.0, floor_y + 0.01, basket_z)
+	_cart_basket_floor = floor_y + 0.01
+	_cart_basket_half_width = w * 0.5
+	_cart_basket_front_z = -d * 0.5
+	_cart_basket_back_z = d * 0.5
+	_cart_item_count = 0
+	holder.add_child(_cart_products)
 
 
 func _add_scanner(dark_mat: Material, led_mat: Material) -> void:
@@ -590,12 +748,13 @@ func _animate_walk(delta: float) -> void:
 	_head_pivot.rotation.x = sin(_anim_t * 0.8) * 0.018
 
 	if _cart_mode:
-		_shoulder_l.rotation.x = lerpf(_shoulder_l.rotation.x, 0.52, minf(1.0, delta * 5.0))
-		_shoulder_r.rotation.x = lerpf(_shoulder_r.rotation.x, 0.52, minf(1.0, delta * 5.0))
-		_elbow_l.rotation.x = lerpf(_elbow_l.rotation.x, 0.10, minf(1.0, delta * 5.0))
-		_elbow_r.rotation.x = lerpf(_elbow_r.rotation.x, 0.10, minf(1.0, delta * 5.0))
-		_hand_l.rotation.x = lerpf(_hand_l.rotation.x, 1.2, minf(1.0, delta * 5.0))
-		_hand_r.rotation.x = lerpf(_hand_r.rotation.x, 1.2, minf(1.0, delta * 5.0))
+		# Reach forward to the imported cart handle, close to the shopper's hands.
+		_shoulder_l.rotation.x = lerpf(_shoulder_l.rotation.x, 0.62, minf(1.0, delta * 5.0))
+		_shoulder_r.rotation.x = lerpf(_shoulder_r.rotation.x, 0.62, minf(1.0, delta * 5.0))
+		_elbow_l.rotation.x = lerpf(_elbow_l.rotation.x, -0.18, minf(1.0, delta * 5.0))
+		_elbow_r.rotation.x = lerpf(_elbow_r.rotation.x, -0.18, minf(1.0, delta * 5.0))
+		_hand_l.rotation.x = lerpf(_hand_l.rotation.x, 0.0, minf(1.0, delta * 5.0))
+		_hand_r.rotation.x = lerpf(_hand_r.rotation.x, 0.0, minf(1.0, delta * 5.0))
 		return
 
 	var arm_l := -stride * 0.48
@@ -627,12 +786,12 @@ func _animate_idle(delta: float) -> void:
 	_head_pivot.rotation.x = sin(_look_t * 0.75) * 0.022
 
 	if _cart_mode:
-		_shoulder_l.rotation.x = lerpf(_shoulder_l.rotation.x, 0.52, minf(1.0, delta * 5.0))
-		_shoulder_r.rotation.x = lerpf(_shoulder_r.rotation.x, 0.52, minf(1.0, delta * 5.0))
-		_elbow_l.rotation.x = lerpf(_elbow_l.rotation.x, 0.10, minf(1.0, delta * 5.0))
-		_elbow_r.rotation.x = lerpf(_elbow_r.rotation.x, 0.10, minf(1.0, delta * 5.0))
-		_hand_l.rotation.x = lerpf(_hand_l.rotation.x, 1.2, minf(1.0, delta * 5.0))
-		_hand_r.rotation.x = lerpf(_hand_r.rotation.x, 1.2, minf(1.0, delta * 5.0))
+		_shoulder_l.rotation.x = lerpf(_shoulder_l.rotation.x, 0.62, minf(1.0, delta * 5.0))
+		_shoulder_r.rotation.x = lerpf(_shoulder_r.rotation.x, 0.62, minf(1.0, delta * 5.0))
+		_elbow_l.rotation.x = lerpf(_elbow_l.rotation.x, -0.18, minf(1.0, delta * 5.0))
+		_elbow_r.rotation.x = lerpf(_elbow_r.rotation.x, -0.18, minf(1.0, delta * 5.0))
+		_hand_l.rotation.x = lerpf(_hand_l.rotation.x, 0.0, minf(1.0, delta * 5.0))
+		_hand_r.rotation.x = lerpf(_hand_r.rotation.x, 0.0, minf(1.0, delta * 5.0))
 		return
 
 	_shoulder_l.rotation.x = lerpf(_shoulder_l.rotation.x, 0.025 + sin(_look_t * 0.7) * 0.012, minf(1.0, delta * 4.0))

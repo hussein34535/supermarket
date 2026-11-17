@@ -8,6 +8,7 @@ var department: int = 0
 var dept_color: Color = Color.WHITE
 var placed_count: int = 0
 var shelf_products: Array[Node3D] = []
+var last_taken_model: Dictionary = {}
 
 var _slots: Array[Transform3D] = []
 var _free_slots: Array[int] = []
@@ -210,10 +211,14 @@ func stock_ratio() -> float:
 # A shopper takes the most recently stocked item off the shelf. The slot goes back
 # into the free list so the player can restock the exact same spot later.
 func take_product() -> int:
+	last_taken_model = {}
 	if shelf_products.is_empty():
 		return -1
 	var holder: Node3D = shelf_products.pop_back()
 	if is_instance_valid(holder):
+		last_taken_model = holder.get_meta("model_info", {}).duplicate()
+		if last_taken_model.is_empty():
+			last_taken_model = ModelCatalog.pick(department)
 		holder.queue_free()
 	if not _placed_slots.is_empty():
 		_free_slots.append(_placed_slots.pop_back())
@@ -247,11 +252,13 @@ func place_product(color: Color, near: Vector3 = Vector3.ZERO, model_info: Dicti
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = placed_count * 7919 + department * 104729
+	var hero: Dictionary = model_info if not model_info.is_empty() else ModelCatalog.pick(department)
 	var holder := Node3D.new()
 	holder.transform = slot
 	holder.basis = slot.basis * Basis(Vector3.UP, rng.randf_range(-0.5, 0.5))
+	holder.set_meta("model_info", hero.duplicate())
 	add_child(holder)
-	_build_shelf_model(holder, rng, model_info)
+	_build_shelf_model(holder, rng, hero)
 	holder.scale = Vector3(0.01, 0.01, 0.01)
 	var tw := create_tween()
 	tw.tween_property(holder, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -265,7 +272,7 @@ func _build_shelf_model(holder: Node3D, rng: RandomNumberGenerator, model_info: 
 	# a product would swap the nice model back to a primitive box. Models are
 	# fitted to the slot: readable from the aisle, shallow enough that the three
 	# rows per bay do not swallow each other. ProductShapes is only a fallback.
-	var hero: Dictionary = model_info if not model_info.is_empty() else ModelCatalog.pick(department)
+	var hero: Dictionary = model_info
 	if not hero.is_empty():
 		var packed := ModelCatalog.scene(String(hero["path"]))
 		if packed != null:
