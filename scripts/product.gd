@@ -31,7 +31,8 @@ func setup(dept: int, color: Color, hero_override: Dictionary = {}) -> void:
 			var inst := packed.instantiate() as Node3D
 			if inst != null:
 				_build_hero(inst, float(hero["scale"]))
-				var fitted := ProductShapes.upright_model(inst)
+				var model_name := String(hero.get("name", ""))
+				var fitted := ProductShapes.upright_model(inst, model_name)
 				var fit_factor := 1.0
 				var longest := maxf(fitted.x, maxf(fitted.y, fitted.z))
 				if longest > 0.44:

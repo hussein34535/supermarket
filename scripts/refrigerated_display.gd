@@ -56,19 +56,24 @@ func setup_display(
 	interaction.position = Vector3(0, target_height * 0.52, _front_depth() + 0.06)
 	add_child(interaction)
 
+	# The imported unit already has shelves, so read their tops from the model
+	# instead of guessing. Guessed levels left stock floating between shelves.
+	var shelves := _measure_shelves(target_height)
+	var levels: Array = shelves["levels"]
+	if levels.is_empty():
+		levels = [0.39, 0.87, 1.35]
+	var stock_depth: float = shelves["front_z"]
 	var cols := maxi(4, int(_display_width / 0.42))
 	var bay_width := (_display_width * 0.84) / float(cols)
-	var stock_depth := _front_depth() - 0.20
-	var levels: Array[float] = [0.39, 0.87, 1.35, 1.83]
-	for level in levels:
+	for level: float in levels:
 		if level > target_height - 0.18:
 			continue
 		for col in cols:
 			var slot := Transform3D()
-			slot.basis = Basis(Vector3.UP, PI)
+			# Stock faces the aisle (+Z) so the labels read through the glass.
 			slot.origin = Vector3(
 				-_display_width * 0.42 + bay_width * (float(col) + 0.5),
-				level,
+				level + 0.005,
 				stock_depth)
 			_free_slots.append(_slots.size())
 			_slots.append(slot)
@@ -81,6 +86,44 @@ func setup_display(
 
 func _front_depth() -> float:
 	return _front_depth_value
+
+
+# Finds the horizontal boards inside the imported cabinet and returns their top
+# surfaces plus how far forward stock can sit without poking through the glass.
+func _measure_shelves(target_height: float) -> Dictionary:
+	var levels: Array[float] = []
+	var front_z := _front_depth() - 0.30
+	if _visual == null:
+		return {"levels": levels, "front_z": front_z}
+	var width := maxf(_display_width, 0.1)
+	var found_front := -1e9
+	for node in _visual.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var relative := Transform3D.IDENTITY
+		var current := mi as Node3D
+		while current != null and current != _visual:
+			relative = current.transform * relative
+			current = current.get_parent() as Node3D
+		if current != _visual:
+			continue
+		var box: AABB = _visual.transform * relative * mi.mesh.get_aabb()
+		if box.size.y > 0.09 or box.size.x < width * 0.45:
+			continue
+		var top := box.position.y + box.size.y
+		if top < target_height * 0.22 or top > target_height * 0.95:
+			continue
+		levels.append(top)
+		found_front = maxf(found_front, box.position.z + box.size.z)
+	levels.sort()
+	var merged: Array[float] = []
+	for level in levels:
+		if merged.is_empty() or level - merged[merged.size() - 1] > 0.06:
+			merged.append(level)
+	if found_front > -1e8:
+		front_z = minf(front_z, found_front - 0.18)
+	return {"levels": merged, "front_z": front_z}
 
 
 func _bounds_in_parent(root: Node3D) -> AABB:
@@ -122,9 +165,10 @@ func _build_shelf_model(holder: Node3D, rng: RandomNumberGenerator, model_info: 
 		return
 	holder.add_child(item)
 	item.scale = Vector3.ONE * float(hero.get("scale", 1.0))
-	var dims := ProductShapes.upright_model(item)
+	var dims := ProductShapes.upright_model(item, String(hero.get("name", "")))
 	var longest := maxf(dims.x, maxf(dims.y, dims.z))
-	var fit_factor := minf(1.0, 0.32 / maxf(longest, 0.01))
+	var max_item_size := 0.24 if ProductShapes.is_flat_product(String(hero.get("name", ""))) else 0.27
+	var fit_factor := minf(1.0, max_item_size / maxf(longest, 0.01))
 	item.scale *= fit_factor
 	item.position *= fit_factor
 	item.rotation.y = rng.randf_range(-0.20, 0.20)

@@ -1087,7 +1087,7 @@ func _build_produce() -> void:
 	var timber_light := ProductShapes._mat(Color(0.62, 0.39, 0.20), 0.0, 0.76)
 	var leaf_crate := ProductShapes._mat(Color(0.16, 0.39, 0.20), 0.0, 0.74)
 	var leaf_edge := ProductShapes._mat(Color(0.29, 0.54, 0.28), 0.0, 0.68)
-	var header_mat := ProductShapes._mat(Color(0.08, 0.30, 0.19), 0.0, 0.58)
+	var header_mat := ProductShapes._mat(Color(0.13, 0.40, 0.25), 0.0, 0.58)
 	var display := Node3D.new()
 	display.name = "FreshProduceDisplay"
 	display.position = Vector3(-20.2, 0.0, -3.15)
@@ -1106,8 +1106,18 @@ func _build_produce() -> void:
 		for y in [0.22, 0.43]:
 			_add_display_box(display, Vector3(2.92, 0.055, 0.065), Vector3(0, y, z), timber_light)
 
-	_add_display_box(display, Vector3(3.15, 0.62, 0.10), Vector3(0, 1.92, -0.97), header_mat)
-	_add_display_box(display, Vector3(3.18, 0.055, 0.13), Vector3(0, 1.60, -0.96), timber_light)
+	# Green fascia along the customer side only: the department colour stays,
+	# without a wall of green crates hiding the produce.
+	_add_display_box(display, Vector3(3.20, 0.13, 0.06), Vector3(0, 0.79, 1.04), leaf_crate)
+	_add_display_box(display, Vector3(3.20, 0.035, 0.075), Vector3(0, 0.865, 1.045), leaf_edge)
+
+	# Sign board carried by two timber posts at the back of the island.
+	for side in [-1.44, 1.44]:
+		_add_display_box(display, Vector3(0.11, 1.52, 0.11), Vector3(side, 1.60, -0.90), timber)
+		_add_display_box(display, Vector3(0.16, 0.06, 0.16), Vector3(side, 2.37, -0.90), timber_light)
+	_add_display_box(display, Vector3(3.15, 0.62, 0.10), Vector3(0, 2.02, -0.92), header_mat)
+	_add_display_box(display, Vector3(3.24, 0.07, 0.14), Vector3(0, 2.35, -0.92), timber_light)
+	_add_display_box(display, Vector3(3.24, 0.07, 0.14), Vector3(0, 1.69, -0.92), timber_light)
 	var sign := Label3D.new()
 	sign.text = "خُضَار طازجة"
 	sign.font = ProductShapes.sign_font()
@@ -1115,38 +1125,41 @@ func _build_produce() -> void:
 	sign.pixel_size = 0.0042
 	sign.modulate = Color(0.98, 0.92, 0.73)
 	sign.outline_size = 8
-	sign.position = Vector3(0, 1.93, -0.905)
+	sign.position = Vector3(0, 2.02, -0.862)
 	display.add_child(sign)
 
+	# Three open timber trays: low front lips so the vegetables stay visible from
+	# the aisle, taller back boards to hold the heap, no green box in sight.
+	var crate_floor := ProductShapes._mat(Color(0.57, 0.38, 0.20), 0.0, 0.82)
 	var varieties: Array[Array] = [["lettuce", "broccoli", "cabbage"], ["carrots", "zucchini", "red_peppers"], ["potatoes", "red_onions", "green_grapes"]]
 	var names: PackedStringArray = ["ورقيات", "خضار يومية", "طازج اليوم"]
 	var produce_deck: Array = ModelCatalog.DECKS[0]
 	for i in 3:
-		var bin := Node3D.new()
-		bin.name = "GreenProduceBin_%d" % i
-		bin.position = Vector3(-1.02 + float(i) * 1.02, 0.83, 0.20)
-		bin.rotation.x = deg_to_rad(-9.0)
-		display.add_child(bin)
-		_add_display_box(bin, Vector3(0.88, 0.075, 0.83), Vector3(0, 0.02, 0), leaf_crate)
+		var tray := Node3D.new()
+		tray.name = "ProduceTray_%d" % i
+		tray.position = Vector3(-1.02 + float(i) * 1.02, 0.845, 0.10)
+		display.add_child(tray)
+		_add_display_box(tray, Vector3(0.94, 0.06, 1.34), Vector3(0, 0.03, 0), crate_floor)
+		_add_display_box(tray, Vector3(0.99, 0.11, 0.06), Vector3(0, 0.065, 0.67), timber)
+		_add_display_box(tray, Vector3(0.99, 0.03, 0.075), Vector3(0, 0.135, 0.675), timber_light)
+		_add_display_box(tray, Vector3(0.99, 0.30, 0.06), Vector3(0, 0.16, -0.67), timber)
 		for side in [-1.0, 1.0]:
-			_add_display_box(bin, Vector3(0.075, 0.38, 0.88), Vector3(side * 0.405, 0.19, 0), leaf_edge)
-		_add_display_box(bin, Vector3(0.73, 0.34, 0.065), Vector3(0, 0.18, 0.395), leaf_crate)
-		_add_display_box(bin, Vector3(0.76, 0.055, 0.09), Vector3(0, 0.38, 0.40), leaf_edge)
+			_add_display_box(tray, Vector3(0.06, 0.22, 1.36), Vector3(side * 0.47, 0.11, 0), timber)
 		var crate_label := Label3D.new()
 		crate_label.text = names[i]
 		crate_label.font = ProductShapes.sign_font()
-		crate_label.font_size = 19
-		crate_label.pixel_size = 0.0031
-		crate_label.modulate = Color(0.96, 0.99, 0.89)
+		crate_label.font_size = 18
+		crate_label.pixel_size = 0.0030
+		crate_label.modulate = Color(0.97, 0.99, 0.90)
 		crate_label.outline_size = 4
-		crate_label.position = Vector3(0, 0.22, 0.435)
-		bin.add_child(crate_label)
+		crate_label.position = Vector3(0, 0.075, 0.706)
+		tray.add_child(crate_label)
 
 		var entries: Array = []
 		for hero in produce_deck:
 			if String(hero.get("name", "")) in varieties[i]:
 				entries.append(hero)
-		for row in 2:
+		for row in 4:
 			for col in 3:
 				if entries.is_empty():
 					continue
@@ -1157,15 +1170,22 @@ func _build_produce() -> void:
 				var item := packed.instantiate() as Node3D
 				if item == null:
 					continue
-				bin.add_child(item)
+				tray.add_child(item)
 				item.scale = Vector3.ONE * float(hero["scale"])
-				var dims := ProductShapes.upright_model(item)
+				var model_name := String(hero.get("name", ""))
+				var dims := ProductShapes.upright_model(item, model_name)
 				var longest := maxf(dims.x, maxf(dims.y, dims.z))
-				var fit_factor := minf(1.0, 0.34 / maxf(longest, 0.01))
+				var max_item_size := 0.24 if ProductShapes.is_flat_product(model_name) else 0.28
+				var fit_factor := minf(1.0, max_item_size / maxf(longest, 0.01))
 				item.scale *= fit_factor
 				item.position *= fit_factor
-				item.position += Vector3(-0.24 + col * 0.24, 0.13, -0.13 + row * 0.23)
-				item.rotation.y = rng.randf_range(-0.24, 0.24)
+				item.position += Vector3(
+					-0.30 + col * 0.30,
+					0.06 + rng.randf_range(0.0, 0.035) + (0.03 if row > 1 else 0.0),
+					-0.46 + row * 0.31)
+				item.rotation.y = rng.randf_range(-0.55, 0.55)
+				item.rotation.x = rng.randf_range(-0.10, 0.10)
+				item.rotation.z = rng.randf_range(-0.10, 0.10)
 				for node in item.find_children("*", "MeshInstance3D", true, false):
 					var mi := node as MeshInstance3D
 					if mi != null:
@@ -1195,7 +1215,7 @@ func _build_equipment() -> void:
 	for i in 4:
 		var cx := -7.0 + i * 7.0
 		_place_scene(ModelCatalog.equipment("digital_scale"), Vector3(cx + 2.1, 0.0, 10.85), PI, 1.0)
-	_place_scene(ModelCatalog.equipment("digital_scale"), Vector3(-19.0, 0.0, -3.5), PI * 0.5, 1.0)
+	_place_scene(ModelCatalog.equipment("digital_scale"), Vector3(-19.0, 0.0, -1.25), PI, 1.0)
 	_place_scene(ModelCatalog.equipment("metal_rack"), DELIVERY_SPOT + Vector3(2.55, 0.0, -0.6), PI * 0.5, 1.0)
 	_place_scene(ModelCatalog.equipment("metal_rack"), DELIVERY_SPOT + Vector3(2.55, 0.0, 0.55), PI * 0.5, 1.0)
 	_place_scene(ModelCatalog.equipment("metal_grill"), DELIVERY_SPOT + Vector3(-2.6, 0.0, -0.55), 0.0, 1.3)

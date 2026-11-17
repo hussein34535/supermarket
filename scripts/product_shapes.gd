@@ -2,6 +2,9 @@ class_name ProductShapes
 extends RefCounted
 
 const ROT := PI * 0.5
+const FLAT_CATALOG_PRODUCTS: Array[String] = [
+	"tomato_tray", "carrots", "zucchini", "pepsi_cans", "red_onions", "tuna_cans", "tuna_pack"
+]
 
 static var _mat_cache: Dictionary = {}
 static var _shop_mat_cache: Dictionary = {}
@@ -30,19 +33,27 @@ static func highlight_material(color: Color) -> StandardMaterial3D:
 	return _mat(color.lightened(0.45), 0.0, 0.4, 2.5)
 
 
-# Catalog models are authored with their long axis pointing along X or Z. Stand
-# that axis upright and normalize the pivot so the base rests at y=0.
-static func upright_model(inst: Node3D) -> Vector3:
+# Catalog models are authored with their long axis pointing along X or Z. Most
+# products are upright, but shallow trays, packs and multipacks must stay flat.
+# Their generated catalog height is the explicit orientation hint; using the
+# longest raw axis for every model turns those products on their sides.
+static func is_flat_product(model_name: String) -> bool:
+	return model_name in FLAT_CATALOG_PRODUCTS
+
+
+static func upright_model(inst: Node3D, model_name: String = "") -> Vector3:
 	var parent := inst.get_parent() as Node3D
 	if parent == null:
 		return Vector3.ZERO
 	var bounds := _model_bounds_in_parent(inst, parent)
 	if bounds.size.length_squared() < 0.000001:
 		return Vector3.ZERO
-	if bounds.size.z > bounds.size.x and bounds.size.z > bounds.size.y:
-		inst.rotation.x = PI * 0.5
-	elif bounds.size.x > bounds.size.y:
-		inst.rotation.z = -PI * 0.5
+	var shallow_product := is_flat_product(model_name)
+	if not shallow_product:
+		if bounds.size.z > bounds.size.x and bounds.size.z > bounds.size.y:
+			inst.rotation.x = PI * 0.5
+		elif bounds.size.x > bounds.size.y:
+			inst.rotation.z = -PI * 0.5
 	bounds = _model_bounds_in_parent(inst, parent)
 	inst.position -= Vector3(
 		bounds.position.x + bounds.size.x * 0.5,

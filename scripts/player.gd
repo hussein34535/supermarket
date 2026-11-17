@@ -969,7 +969,7 @@ func _build_carry_model(dept: int, rng: RandomNumberGenerator, hero: Dictionary)
 	var holder := Node3D.new()
 	holder.add_child(inst)
 	_carry_holder.add_child(holder)
-	_normalize_carry_item(inst)
+	_normalize_carry_item(inst, String(hero.get("name", "")))
 	# Held packs should read like a real item in the palm: tall enough to see at a
 	# glance, small enough that it never swallows the hand or the screen.
 	var fit := _carry_fit(hero)
@@ -985,13 +985,15 @@ func _build_carry_model(dept: int, rng: RandomNumberGenerator, hero: Dictionary)
 		ProductShapes.shop_material(mi)
 	return true
 
-func _normalize_carry_item(inst: Node3D) -> void:
+func _normalize_carry_item(inst: Node3D, model_name: String = "") -> void:
 	var box := _item_aabb(inst)
 	var size := box.size
-	if size.z >= size.x and size.z >= size.y:
-		inst.rotation.x = PI * 0.5
-	elif size.x >= size.y:
-		inst.rotation.z = -PI * 0.5
+	var shallow_product := ProductShapes.is_flat_product(model_name)
+	if not shallow_product:
+		if size.z >= size.x and size.z >= size.y:
+			inst.rotation.x = PI * 0.5
+		elif size.x >= size.y:
+			inst.rotation.z = -PI * 0.5
 	box = _item_aabb(inst)
 	inst.position = Vector3(
 		-(box.position.x + box.size.x * 0.5),

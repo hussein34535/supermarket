@@ -273,9 +273,10 @@ func _build_shelf_model(holder: Node3D, rng: RandomNumberGenerator, model_info: 
 			if inst != null:
 				holder.add_child(inst)
 				inst.scale = Vector3.ONE * float(hero.get("scale", 1.0))
-				var fitted := ProductShapes.upright_model(inst)
+				var fitted := ProductShapes.upright_model(inst, String(hero.get("name", "")))
 				var longest := maxf(fitted.x, maxf(fitted.y, fitted.z))
-				var fit_factor := minf(1.0, 0.30 / maxf(longest, 0.01))
+				var max_item_size := 0.22 if ProductShapes.is_flat_product(String(hero.get("name", ""))) else 0.30
+				var fit_factor := minf(1.0, max_item_size / maxf(longest, 0.01))
 				inst.scale *= fit_factor
 				inst.position *= fit_factor
 				inst.rotation.y = rng.randf_range(-0.25, 0.25)
